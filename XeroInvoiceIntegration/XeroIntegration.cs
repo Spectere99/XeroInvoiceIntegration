@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using Xero.Api.Core;
+using Xero.Api.Core.Model;
 using Xero.Api.Example.Applications.Private;
 using Xero.Api.Example.Applications.Public;
 using Xero.Api.Example.TokenStores;
@@ -16,7 +17,7 @@ namespace XeroInvoiceIntegration
     class XeroIntegration
     {
 
-        public void CreateContact()
+        public Contact CreateContact(Contact newContact)
         {
             // Private Application Sample
             X509Certificate2 cert = new X509Certificate2(@"E:\Projects\SouthPaw\Development\public_privatekey.pfx", "Spectere99");
@@ -27,10 +28,20 @@ namespace XeroInvoiceIntegration
             var user = new ApiUser { Name = Environment.MachineName };
 
             var org = private_app_api.Organisation;
-            
+
             var contacts = private_app_api.Contacts.Find().ToList();
 
-            
+            Contact returnContact = newContact;
+            if (!contacts.Exists(p => p.Name.Equals(newContact.Name)))
+            {
+                //See if contact exists
+                returnContact = private_app_api.Create(newContact);
+            }
+
+            return returnContact;
+
+            //Create Contact
+
 
             // Public Application Sample
             //var public_app_api = new XeroCoreApi("https://api.xero.com", new PublicAuthenticator("https://api.xero.com", "https://api.xero.com", "oob",
