@@ -4,20 +4,28 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 using Xero.Api.Core;
 using Xero.Api.Core.Model;
 using Xero.Api.Example.Applications.Private;
 using Xero.Api.Example.Applications.Public;
 using Xero.Api.Example.TokenStores;
 using Xero.Api.Infrastructure.OAuth;
+using Xero.Api.Infrastructure.ThirdParty.ServiceStack.Text;
 using Xero.Api.Serialization;
 
 namespace XeroInvoiceIntegration
 {
     class XeroIntegration
     {
+        private static log4net.ILog _log = null;
+        public XeroIntegration()
+        {
+            //setup logger
+            _log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        }
 
-        public Contact CreateContact(Contact newContact)
+        public Contact CreateContact(Contact newContact, bool transmit)
         {
             // Private Application Sample
             X509Certificate2 cert = new X509Certificate2(@"E:\Projects\SouthPaw\Development\public_privatekey.pfx",
@@ -30,22 +38,28 @@ namespace XeroInvoiceIntegration
 
             var org = private_app_api.Organisation;
 
-            //var contacts = private_app_api.Contacts.Find().ToList();
-
             var foundContact =
                 private_app_api.Contacts.Where(string.Format("Name == \"{0}\"", newContact.Name))
                     .Find()
                     .FirstOrDefault();
             Contact returnContact = newContact;
+
             if (foundContact != null)
             {
                 //Update Contact
                 newContact.Id = foundContact.Id;
-                returnContact = private_app_api.Contacts.Update(newContact);
+                _log.InfoFormat("Updating Contact: {0}:{1}", newContact.Name, newContact.Id);
+                _log.DebugFormat("--Contact XML--");
+                _log.Debug(newContact.ToXml());
+                returnContact = transmit ? private_app_api.Contacts.Update(newContact) : newContact;
             }
             else //New Contact
             {
-                returnContact = private_app_api.Contacts.Create(newContact);
+                
+                _log.InfoFormat("Creating Contact: {0}:{1}", newContact.Name, newContact.Id);
+                _log.DebugFormat("--Contact XML--");
+                _log.Debug(newContact.ToXml());
+                returnContact = transmit ? private_app_api.Contacts.Create(newContact) : newContact;
             }
 
 
@@ -64,7 +78,7 @@ namespace XeroInvoiceIntegration
 
         }
 
-        public Invoice CreateInvoice(Invoice newInvoice)
+        public Invoice CreateInvoice(Invoice newInvoice, bool transmit)
         {
             X509Certificate2 cert = new X509Certificate2(@"E:\Projects\SouthPaw\Development\public_privatekey.pfx",
                 "Spectere99");
@@ -85,16 +99,22 @@ namespace XeroInvoiceIntegration
             {
                 //Do we need to update the invoice if it is already created or do we just report it????
                 newInvoice.Id = newInvoice.Id;
+                _log.InfoFormat("Invoice Exists: {0}:{1}", newInvoice.Reference, newInvoice.Id);
+                _log.DebugFormat("--Invoice XML--");
+                _log.Debug(newInvoice.ToXml());
                 //returnContact = private_app_api.Contacts.Update(newContact);
             }
             else //New Contact
             {
-                returnInvoice = private_app_api.Invoices.Create(newInvoice);
+                _log.InfoFormat("Creating Invoice: {0}:{1}", newInvoice.Reference, newInvoice.Id);
+                _log.DebugFormat("--Invoice XML--");
+                _log.Debug(newInvoice.ToXml());
+                returnInvoice = transmit ? private_app_api.Invoices.Create(newInvoice) : newInvoice;
             }
             return returnInvoice;
         }
 
-        public Payment CreatePayment(Payment newPayment)
+        public Payment CreatePayment(Payment newPayment, bool transmit)
         {
             X509Certificate2 cert = new X509Certificate2(@"E:\Projects\SouthPaw\Development\public_privatekey.pfx",
                 "Spectere99");
@@ -116,11 +136,17 @@ namespace XeroInvoiceIntegration
             {
                 //Do we need to update the invoice if it is already created or do we just report it????
                 newPayment.Id = foundPayment.Id;
-                //returnContact = private_app_api.Contacts.Update(newContact);
+                _log.InfoFormat("Payment Exists: {0}:{1}", newPayment.Reference, newPayment.Id);
+                _log.DebugFormat("--Payment XML--");
+                _log.Debug(newPayment.ToXml());
             }
             else //New Contact
             {
-                returnPayment = private_app_api.Payments.Create(newPayment);
+                _log.InfoFormat("Creating Payment: {0}:{1}", newPayment.Reference, newPayment.Id);
+                _log.DebugFormat("--Payment XML--");
+                _log.Debug(newPayment.ToXml());
+                
+                returnPayment = transmit? private_app_api.Payments.Create(newPayment) : newPayment;
             }
             return returnPayment;
         }

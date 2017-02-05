@@ -42,6 +42,8 @@ namespace XeroInvoiceIntegration
                 };
                 xeroContact.Addresses.Add(newAddress);
             }
+
+            return xeroContact;
         }
 
         public Invoice BuildInvoice(order theOrder, Contact contact)
@@ -52,21 +54,52 @@ namespace XeroInvoiceIntegration
             xeroInvoice.ExpectedPaymentDate = DateTime.Now.AddDays(30);
             xeroInvoice.Number = theOrder.order_number;
             xeroInvoice.Reference = theOrder.order_number;
+            xeroInvoice.AmountDue = decimal.Parse(theOrder.balance_due);
+
+            xeroInvoice.LineItems = BuildInvoiceLineItems(theOrder);
 
             return xeroInvoice;
         }
 
         public List<LineItem> BuildInvoiceLineItems(order theOrder)
         {
+            SIMSDataEntities dataEntities = new SIMSDataEntities();
+
             List<LineItem> lineItems = new List<LineItem>();
 
+            IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id);
+            //TODO:  Add check for a valid details.  If quantity or price is null, then it is an invalid line item and an exception needs to be thrown and recorded.
+            foreach (var detail in orderDetails)
+            {
+                var priceListId = detail.pricelist_id ?? default(int);
+                var pricelistItems =
+                    dataEntities.pricelists.FirstOrDefault(p => p.pricelist_id == priceListId);
+
+                var xeroInvoiceItem = new LineItem();
+                xeroInvoiceItem.AccountCode = "400";  //Check on this.  Is this correct??
+                xeroInvoiceItem.Description = (pricelistItems != null)
+                    ? pricelistItems.pricelist_description
+                    : "General Item";
+                //xeroInvoiceItem.ItemCode = pricelistItems.pricelist_code;
+                xeroInvoiceItem.Quantity = detail.item_quantity;
+                xeroInvoiceItem.LineAmount = decimal.Parse(detail.item_price_ext);
+                xeroInvoiceItem.UnitAmount = decimal.Parse(detail.item_price_each);
+
+                lineItems.Add(xeroInvoiceItem);
+            }
 
             return lineItems;
         }
-        public Payment BuildPayment(int orderId, Contact contact)
+        public Payment BuildPayment(order_payments payment, Invoice xeroInvoice)
         {
             Payment xeroPayment = new Payment();
 
+            xeroPayment.Invoice = xeroInvoice;
+            xeroPayment.Date = DateTime.Parse(payment.payment_date.ToString());
+            xeroPayment.Amount = Decimal.Parse(payment.payment_amount);
+            xeroPayment.Type = PaymentType.AccountsReceivable;
+            xeroPayment.Reference = string.Format("{0}{1}", payment.order_id, payment.payment_date);
+            
             return xeroPayment;
         }
 

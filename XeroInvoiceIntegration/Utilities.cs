@@ -10,6 +10,16 @@ namespace XeroInvoiceIntegration
     public static class Utilities
     {
 
-        
+        public static string FlattenException(Exception ex)
+        {
+            StringBuilder sb = new StringBuilder();
+
+            if (ex.InnerException != null)
+            {
+                sb.Append(FlattenException(ex.InnerException));
+            }
+
+            return sb.ToString();
+        }
     }
 }
