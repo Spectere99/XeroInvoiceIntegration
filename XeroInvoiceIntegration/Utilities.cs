@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using SIMSData;
 
 namespace XeroInvoiceIntegration
@@ -20,6 +21,19 @@ namespace XeroInvoiceIntegration
             }
 
             return sb.ToString();
+        }
+
+        public static string FormatXML(string xml)
+        {
+            try
+            {
+                XDocument doc = XDocument.Parse(xml);
+                return doc.ToString();
+            }
+            catch (Exception)
+            {
+                return xml;
+            }
         }
     }
 }
