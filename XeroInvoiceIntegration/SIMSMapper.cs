@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -74,9 +75,10 @@ namespace XeroInvoiceIntegration
                 var priceListId = detail.pricelist_id ?? default(int);
                 var pricelistItems =
                     dataEntities.pricelists.FirstOrDefault(p => p.pricelist_id == priceListId);
+                var itemCodeXRefs = dataEntities.item_code_xref;
 
                 var xeroInvoiceItem = new LineItem();
-                xeroInvoiceItem.AccountCode = "400";  //Check on this.  Is this correct??
+                xeroInvoiceItem.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];  //"400";  //Check on this.  Is this correct??
                 xeroInvoiceItem.Description = (pricelistItems != null)
                     ? pricelistItems.pricelist_description
                     : "General Item";

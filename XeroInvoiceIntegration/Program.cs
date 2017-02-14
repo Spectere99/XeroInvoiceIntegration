@@ -64,7 +64,7 @@ namespace XeroInvoiceIntegration
 
                 SIMSDataEntities dataEntities = new SIMSDataEntities();
                 SIMSMapper simsMapper = new SIMSMapper();
-                DateTime selectDate = DateTime.Parse("1/20/2017"); //RWF - Debug to make sure we have all the data.
+                DateTime selectDate = DateTime.Parse("1/1/2017"); //RWF - Debug to make sure we have all the data.
                 //DateTime selectDate = DateTime.Now.AddDays(-2);
                 var dailyOrderNumbers = dataEntities.order_status_history.Where(p => p.order_status.Equals("com"))
                     .Where(o => o.status_date >= selectDate);
