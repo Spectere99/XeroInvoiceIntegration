@@ -92,9 +92,17 @@ namespace XeroInvoiceIntegration
                                 customerCsv.WriteRecord(xeroContact);
                                 xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
 
+                                string orderid = header.order_id.ToString();
+                                order_status_history statusHistory =
+                                    dataEntities.order_status_history.Where(o => o.order_id == orderid).FirstOrDefault(d=>d.order_status.Equals("com"));
+                                user assignedTo =
+                                    dataEntities.users.FirstOrDefault(o => o.user_id == header.assigned_user_id);
 
+                                DateTime completeDate = DateTime.Parse(statusHistory.status_date.ToString());
+                                string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
+                                                         assignedTo.last_name.Substring(0, 1).ToUpper() + " " + header.order_number;
                                 //Build Invoice
-                                var xeroInvoice = simsMapper.BuildInvoice(header, xeroContact);
+                                var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber, xeroContact);
                                 if (!invoiceHeaderWritten)
                                 {
                                     invoiceCsv.WriteHeader(xeroInvoice.GetType());
@@ -107,7 +115,7 @@ namespace XeroInvoiceIntegration
 
 
                                 //Process Payments
-                                var orderPayments = dataEntities.order_payments.Where(o => o.order_id == orderIdSearch);
+                                var orderPayments = dataEntities.order_payments.Where(o => o.order_id == orderIdSearch).Where(p=>p.payment_type_code != "oth");
                                 if (orderPayments.Any())
                                 {
                                     Console.WriteLine("  **** Order Payments ****");

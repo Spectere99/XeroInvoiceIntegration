@@ -19,11 +19,21 @@ namespace XeroInvoiceIntegration
 
             customer customer = customers.FirstOrDefault();
             customer_address customerAddress = dataEntities.customer_address.FirstOrDefault(p => p.customer_id == customer.customer_id);
-            customer_person person = dataEntities.customer_person.FirstOrDefault(p => p.customer_id == customer.customer_id);
+            customer_person person = dataEntities.customer_person.Where(p=>p.person_type=="prime").FirstOrDefault(p => p.customer_id == customer.customer_id);
 
             Contact xeroContact = new Contact();
 
             xeroContact.Name = customer.customer_name;
+            if (person != null)
+            {
+                ContactPerson contactPerson = new ContactPerson();
+                contactPerson.EmailAddress = person.email_address;
+                contactPerson.FirstName = person.first_name;
+                contactPerson.LastName = person.last_name;
+                xeroContact.ContactPersons = new List<ContactPerson>();
+                xeroContact.ContactPersons.Add(contactPerson);
+            }
+
             xeroContact.AccountNumber = customer.account_number;
             xeroContact.EmailAddress = person.email_address;
             if (person.phone_1 != null)
@@ -47,16 +57,17 @@ namespace XeroInvoiceIntegration
             return xeroContact;
         }
 
-        public Invoice BuildInvoice(order theOrder, Contact contact)
+        public Invoice BuildInvoice(order theOrder, DateTime invoiceDate, string referenceNumber, Contact contact)
         {
             Invoice xeroInvoice = new Invoice();
             xeroInvoice.Contact = contact;
-            xeroInvoice.Date = theOrder.act_complete_date;
-            xeroInvoice.ExpectedPaymentDate = DateTime.Now.AddDays(30);
-            xeroInvoice.Number = theOrder.order_number;
-            xeroInvoice.Reference = theOrder.order_number;
-            xeroInvoice.AmountDue = decimal.Parse(theOrder.balance_due);
-
+            xeroInvoice.Date = invoiceDate; 
+            // xeroInvoice.ExpectedPaymentDate = DateTime.Now;  Xero Should default based on contact preference.
+            // Invoice Number  Xero should default based on Account Settings.
+            //xeroInvoice.Number = theOrder.order_number;
+            xeroInvoice.Reference = referenceNumber;
+            xeroInvoice.AmountDue = decimal.Parse(theOrder.total);
+            xeroInvoice.Type = InvoiceType.AccountsReceivable;
             xeroInvoice.LineItems = BuildInvoiceLineItems(theOrder);
 
             return xeroInvoice;
@@ -79,10 +90,14 @@ namespace XeroInvoiceIntegration
 
                 var xeroInvoiceItem = new LineItem();
                 xeroInvoiceItem.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];  //"400";  //Check on this.  Is this correct??
+                //Description is the following:
+                // NOTE for VENDOR(from lookups = 'gmtpr' then "Customer Provided'
+                // pricelist_description + Manufacturer + style# + Color + Size & Qty
                 xeroInvoiceItem.Description = (pricelistItems != null)
                     ? pricelistItems.pricelist_description
                     : "General Item";
                 //xeroInvoiceItem.ItemCode = pricelistItems.pricelist_code;
+                
                 xeroInvoiceItem.Quantity = detail.item_quantity;
                 xeroInvoiceItem.LineAmount = decimal.Parse(detail.item_price_ext);
                 xeroInvoiceItem.UnitAmount = decimal.Parse(detail.item_price_each);
@@ -99,8 +114,8 @@ namespace XeroInvoiceIntegration
             xeroPayment.Invoice = xeroInvoice;
             xeroPayment.Date = DateTime.Parse(payment.payment_date.ToString());
             xeroPayment.Amount = Decimal.Parse(payment.payment_amount);
-            xeroPayment.Type = PaymentType.AccountsReceivable;
-            xeroPayment.Reference = string.Format("{0}{1}", payment.order_id, payment.payment_date);
+            xeroPayment.Account.Code = payment.payment_type_code.Equals("cash") ? "091" :"090";
+            xeroPayment.Reference = payment.check_number;
             
             return xeroPayment;
         }
