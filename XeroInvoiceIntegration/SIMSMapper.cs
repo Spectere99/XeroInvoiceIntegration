@@ -6,7 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using SIMSData;
 using Xero.Api.Core.Model;
+using Xero.Api.Core.Model.Status;
 using Xero.Api.Core.Model.Types;
+using Xero.Api.Infrastructure.ThirdParty.ServiceStack.Text;
 
 namespace XeroInvoiceIntegration
 {
@@ -18,14 +20,23 @@ namespace XeroInvoiceIntegration
             var customers = dataEntities.customers.Where(p => p.customer_id == customerId);
 
             customer customer = customers.FirstOrDefault();
+            // Check to see if customer has a parent.  If it does, use that information to create it.
+            if (customer.parent_id != null) //We have a parent.
+            {
+                var parentCustomers = dataEntities.customers.Where(p => p.customer_id == customer.parent_id);
+                customer = parentCustomers.FirstOrDefault();
+
+            }
             customer_address customerAddress = dataEntities.customer_address.FirstOrDefault(p => p.customer_id == customer.customer_id);
-            customer_person person = dataEntities.customer_person.Where(p=>p.person_type=="prime").FirstOrDefault(p => p.customer_id == customer.customer_id);
+            customer_person person = dataEntities.customer_person.Where(p=>p.email_address!=null).FirstOrDefault(p => p.customer_id == customer.customer_id);
 
             Contact xeroContact = new Contact();
-
             xeroContact.Name = customer.customer_name;
             if (person != null)
             {
+                xeroContact.FirstName = person.first_name.Length > 0 ? person.first_name : "NotProvide";
+                xeroContact.LastName = person.last_name.Length > 0 ? person.last_name : "NotProvided";
+                
                 ContactPerson contactPerson = new ContactPerson();
                 contactPerson.EmailAddress = person.email_address;
                 contactPerson.FirstName = person.first_name;
@@ -39,7 +50,11 @@ namespace XeroInvoiceIntegration
             if (person.phone_1 != null)
             {
                 xeroContact.Phones = new List<Phone>();
-                xeroContact.Phones.Add(new Phone() { PhoneNumber = person.phone_1 });
+                xeroContact.Phones.Add(new Phone()
+                {
+                    PhoneAreaCode = person.phone_1.Substring(0, 3),
+                    PhoneNumber = person.phone_1.Substring(3)
+                });
             }
             if (customerAddress != null && customerAddress.address_1 != null)
             {
@@ -60,12 +75,15 @@ namespace XeroInvoiceIntegration
         public Invoice BuildInvoice(order theOrder, DateTime invoiceDate, string referenceNumber, Contact contact)
         {
             Invoice xeroInvoice = new Invoice();
+            
             xeroInvoice.Contact = contact;
-            xeroInvoice.Date = invoiceDate; 
-            // xeroInvoice.ExpectedPaymentDate = DateTime.Now;  Xero Should default based on contact preference.
+            xeroInvoice.Date = invoiceDate;
+            xeroInvoice.DueDate = CalculateInvoiceDueDate(contact);
             // Invoice Number  Xero should default based on Account Settings.
             //xeroInvoice.Number = theOrder.order_number;
+            
             xeroInvoice.Reference = referenceNumber;
+            xeroInvoice.Status = InvoiceStatus.Submitted;
             xeroInvoice.AmountDue = decimal.Parse(theOrder.total);
             xeroInvoice.Type = InvoiceType.AccountsReceivable;
             xeroInvoice.LineItems = BuildInvoiceLineItems(theOrder);
@@ -97,7 +115,6 @@ namespace XeroInvoiceIntegration
                     ? pricelistItems.pricelist_description
                     : "General Item";
                 //xeroInvoiceItem.ItemCode = pricelistItems.pricelist_code;
-                
                 xeroInvoiceItem.Quantity = detail.item_quantity;
                 xeroInvoiceItem.LineAmount = decimal.Parse(detail.item_price_ext);
                 xeroInvoiceItem.UnitAmount = decimal.Parse(detail.item_price_each);
@@ -118,6 +135,54 @@ namespace XeroInvoiceIntegration
             xeroPayment.Reference = payment.check_number;
             
             return xeroPayment;
+        }
+
+
+        private DateTime CalculateInvoiceDueDate(Contact contact)
+        {
+            DateTime dueDate = DateTime.Now.AddDays(5);
+            if (contact.PaymentTerms != null && contact.PaymentTerms.Sales != null)
+            {
+                switch (contact.PaymentTerms.Sales.TermType)
+                {
+                    case PaymentTermType.AfterBillDate: // days after the invoice date.
+                        {
+                            dueDate = DateTime.Now.AddDays(contact.PaymentTerms.Sales.Day);
+                            break;
+                        }
+                    case PaymentTermType.AfterInvoiceMonth: // day of the following month
+                        {
+                            DateTime today = DateTime.Today;
+                            DateTime endOfMonth = new DateTime(today.Year, today.Month,
+                                DateTime.DaysInMonth(today.Year, today.Month));
+                            dueDate = endOfMonth.AddDays(contact.PaymentTerms.Sales.Day);
+                            break;
+                        }
+                    case PaymentTermType.CurrentMonth: // day of the current month
+                        {
+                            DateTime today = DateTime.Today;
+                            DateTime endOfMonth = new DateTime(today.Year, today.Month, contact.PaymentTerms.Sales.Day);
+
+                            dueDate = endOfMonth;
+                            break;
+                        }
+                    case PaymentTermType.DaysAfterBillMonth: //days after the end of the invoice month
+                        {
+                            DateTime today = DateTime.Today;
+                            DateTime endOfMonth = new DateTime(today.Year, today.Month,
+                                DateTime.DaysInMonth(today.Year, today.Month));
+                            dueDate = endOfMonth.AddDays(contact.PaymentTerms.Sales.Day);
+                            break;
+                        }
+                    case PaymentTermType.FollowingMonth: // Day of the following month
+                        {
+                            DateTime today = DateTime.Today;
+                            dueDate = new DateTime(today.Year, today.Month + 1, contact.PaymentTerms.Sales.Day);
+                            break;
+                        }
+                }
+            }
+            return dueDate;
         }
 
     }

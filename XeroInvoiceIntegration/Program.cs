@@ -20,12 +20,15 @@ namespace XeroInvoiceIntegration
     {
 
         private static log4net.ILog _log = null;
-
+        private static int _transactionCount = 0;
+        private static DateTime _lastTime;
+        private static TimeSpan _elapsedTimeSpan = TimeSpan.Zero;
         static void Main(string[] args)
         {
             //setup commandline Options
             var options = new Options();
 
+            _lastTime = DateTime.Now;
             if (CommandLine.Parser.Default.ParseArguments(args, options))
             {
                 //setup logger
@@ -64,7 +67,7 @@ namespace XeroInvoiceIntegration
 
                 SIMSDataEntities dataEntities = new SIMSDataEntities();
                 SIMSMapper simsMapper = new SIMSMapper();
-                DateTime selectDate = DateTime.Parse("1/1/2017"); //RWF - Debug to make sure we have all the data.
+                DateTime selectDate = DateTime.Parse("2/14/2017"); //RWF - Debug to make sure we have all the data.
                 //DateTime selectDate = DateTime.Now.AddDays(-2);
                 var dailyOrderNumbers = dataEntities.order_status_history.Where(p => p.order_status.Equals("com"))
                     .Where(o => o.status_date >= selectDate);
@@ -82,7 +85,7 @@ namespace XeroInvoiceIntegration
                             if (header.customer_id != null)
                             {
                                 int customerId = int.Parse(header.customer_id.ToString());
-
+                                
                                 var xeroContact = simsMapper.BuildContact(customerId);
                                 if (!customerHeaderWritten)
                                 {
@@ -90,6 +93,9 @@ namespace XeroInvoiceIntegration
                                     customerHeaderWritten = true;
                                 }
                                 customerCsv.WriteRecord(xeroContact);
+                                
+
+                                WaitCheck(1);
                                 xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
 
                                 string orderid = header.order_id.ToString();
@@ -111,6 +117,7 @@ namespace XeroInvoiceIntegration
                                 invoiceCsv.WriteRecord(xeroInvoice);
 
                                 // Create the Invoice
+                                WaitCheck(1);
                                 xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
 
 
@@ -131,6 +138,7 @@ namespace XeroInvoiceIntegration
                                             paymentHeaderWritten = true;
                                         }
                                         paymentCsv.WriteRecord(xeroPayment);
+                                        WaitCheck(1);
                                         xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
                                         //Console.WriteLine("  Payment Date:{0} - Payment Amt:{1} - Payment Type:{2}",
                                         //    payment.payment_date, payment.payment_amount, payment.payment_type_code);
@@ -157,6 +165,24 @@ namespace XeroInvoiceIntegration
             }
             
             Console.ReadKey();
+        }
+
+        static void WaitCheck(int transCount)
+        {
+            _transactionCount += transCount;
+
+            _elapsedTimeSpan = DateTime.Now.Subtract(_lastTime);
+            _lastTime = DateTime.Now;
+            if (_elapsedTimeSpan.Seconds < 60) // We need to check about waiting.
+            {
+                if (_transactionCount >= 60)
+                {
+                    _transactionCount = 0;
+                    //Need to wait.
+                    int waitTime = 60 - _elapsedTimeSpan.Seconds;
+                    Thread.Sleep(waitTime * 1000);
+                }
+            }
         }
     }
 }

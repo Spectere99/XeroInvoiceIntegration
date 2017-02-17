@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using log4net;
 using Xero.Api.Core;
 using Xero.Api.Core.Model;
+using Xero.Api.Core.Request;
 using Xero.Api.Example.Applications.Private;
 using Xero.Api.Example.Applications.Public;
 using Xero.Api.Example.TokenStores;
@@ -41,8 +42,26 @@ namespace XeroInvoiceIntegration
             _user = new ApiUser { Name = Environment.MachineName };
             _org = _private_app_api.Organisation;
 
-            _contacts = _private_app_api.Contacts.Find().ToList();
-            _invoices = _private_app_api.Invoices.Find().ToList();
+            int contactCount = _private_app_api.Contacts.Find().Count();
+            int contactPage = 1;
+            _contacts = new List<Contact>();
+            while (contactCount == 100)
+            {
+                _contacts.AddRange(_private_app_api.Contacts.Page(contactPage).Find().ToList());
+                contactCount = _private_app_api.Contacts.Page(contactPage).Find().Count();
+                contactPage++;
+            }
+
+            int invoiceCount = _private_app_api.Invoices.Find().Count();
+            int invoicePage = 1;
+            _invoices = new List<Invoice>();
+            while (invoiceCount == 100)
+            {
+                _invoices.AddRange(_private_app_api.Invoices.Page(invoicePage).Find().ToList());
+                invoiceCount = _private_app_api.Invoices.Page(invoicePage).Find().Count();
+                invoicePage++;
+            }
+
             _payments = _private_app_api.Payments.Find().ToList();
         }
 
@@ -51,7 +70,7 @@ namespace XeroInvoiceIntegration
             var foundContact = _contacts.FirstOrDefault(p=>p.Name == newContact.Name);
             
             Contact returnContact = newContact;
-
+            
             if (foundContact != null)
             {
                 //Update Contact
