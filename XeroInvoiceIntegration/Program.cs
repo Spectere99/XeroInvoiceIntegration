@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Configuration;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using CsvHelper;
 using SIMSData;
 using Xero.Api.Core.Model;
-using Xero.Api.Core.Model.Types;
 using ValidationException = Xero.Api.Infrastructure.Exceptions.ValidationException;
 using log4net;
 
@@ -19,8 +15,8 @@ namespace XeroInvoiceIntegration
     class Program
     {
 
-        private static log4net.ILog _log = null;
-        private static int _transactionCount = 0;
+        private static ILog _log;
+        private static int _transactionCount;
         private static DateTime _lastTime;
         private static TimeSpan _elapsedTimeSpan = TimeSpan.Zero;
         static void Main(string[] args)
@@ -139,7 +135,7 @@ namespace XeroInvoiceIntegration
                                         }
                                         paymentCsv.WriteRecord(xeroPayment);
                                         if (options.TransmitToXero) { WaitCheck(1); }
-                                        xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
+                                        xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
                                         //Console.WriteLine("  Payment Date:{0} - Payment Amt:{1} - Payment Type:{2}",
                                         //    payment.payment_date, payment.payment_amount, payment.payment_type_code);
                                     }
