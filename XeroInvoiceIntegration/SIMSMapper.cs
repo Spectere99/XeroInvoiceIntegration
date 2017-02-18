@@ -84,6 +84,7 @@ namespace XeroInvoiceIntegration
             
             xeroInvoice.Reference = referenceNumber;
             xeroInvoice.Status = InvoiceStatus.Submitted;
+            xeroInvoice.TotalTax = decimal.Parse(theOrder.tax_amount);
             xeroInvoice.AmountDue = decimal.Parse(theOrder.total);
             xeroInvoice.Type = InvoiceType.AccountsReceivable;
             xeroInvoice.LineItems = BuildInvoiceLineItems(theOrder);
@@ -104,26 +105,73 @@ namespace XeroInvoiceIntegration
                 var priceListId = detail.pricelist_id ?? default(int);
                 var pricelistItems =
                     dataEntities.pricelists.FirstOrDefault(p => p.pricelist_id == priceListId);
-                var itemCodeXRefs = dataEntities.item_code_xref;
-
+               
                 var xeroInvoiceItem = new LineItem();
                 xeroInvoiceItem.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];  //"400";  //Check on this.  Is this correct??
-                //Description is the following:
+                // Check and see if item is Customer Provided (gmtpr)
                 // NOTE for VENDOR(from lookups = 'gmtpr' then "Customer Provided'
-                // pricelist_description + Manufacturer + style# + Color + Size & Qty
-                xeroInvoiceItem.Description = (pricelistItems != null)
-                    ? pricelistItems.pricelist_description
-                    : "General Item";
-                //xeroInvoiceItem.ItemCode = pricelistItems.pricelist_code;
+                if (!detail.vendor.Equals("gmtpr"))
+                {
+                    var detailText = GetQuantityDetailText(detail);
+                    var priceListText = detail.pricelist_id != null ? detail.pricelist_id.ToString() : "";
+                    var itemCodeXRef = dataEntities.item_code_xref.FirstOrDefault(p => p.source_item_code == priceListText);
+                    //Description is the following:
+                    // pricelist_description + Manufacturer + style# + Color + Size & Qty
+                    var lineDescription = string.Format("{0} {1} {2} {3} {4}",
+                        (pricelistItems != null) ? pricelistItems.pricelist_description : "Non Inventory Item",
+                        detail.manufacturer, detail.style_code, detail.color_code, detailText);
+
+                    xeroInvoiceItem.Description = lineDescription;
+                    xeroInvoiceItem.ItemCode = (itemCodeXRef != null) ? itemCodeXRef.target_item_code : "999";
+                }
+                else
+                {
+                    List<string> orderScreenTypes = new List<string>(){"rescr", "scrn","screm"};
+                    //var itemCodeXRef = dataEntities.item_code_xref.FirstOrDefault(p=>p.source_item_code.Equals(detail.pricelist_id.ToString()));
+                    xeroInvoiceItem.Description = String.Format("Customer Provided for {0}", orderScreenTypes.Contains(theOrder.order_type)? "Screen" : "Embroidery");
+                    xeroInvoiceItem.ItemCode = String.Format("{0}", orderScreenTypes.Contains(theOrder.order_type) ? "Print Only" : "emb");
+                }
                 xeroInvoiceItem.Quantity = detail.item_quantity;
                 xeroInvoiceItem.LineAmount = decimal.Parse(detail.item_price_ext);
                 xeroInvoiceItem.UnitAmount = decimal.Parse(detail.item_price_each);
+                xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "INPUT": "NONE";
+                
+                lineItems.Add(xeroInvoiceItem);
+            }
+            // Check for setup fees and charges from the order_fees table in SIMS
+            var feeItems = dataEntities.order_fees.Where(p => p.order_id == theOrder.order_id);
+            foreach (order_fees feeItem in feeItems)
+            {
+                var xeroInvoiceItem = new LineItem();
+                var priceListIdString = feeItem.pricelist_id != null? feeItem.pricelist_id.ToString() : "";
+                var itemCodeXRef = dataEntities.item_code_xref.FirstOrDefault(p => p.source_item_code == priceListIdString);
+                
+                if (itemCodeXRef != null)
+                {
+                    xeroInvoiceItem.ItemCode = itemCodeXRef.target_item_code;
+                    xeroInvoiceItem.AccountCode = itemCodeXRef.source_item_code == "10737"
+                        ? ConfigurationManager.AppSettings["ShippingAccountNumber"]
+                        : ConfigurationManager.AppSettings["SalesAccountNumber"];
+                }
+                else
+                {
+                    xeroInvoiceItem.ItemCode = "999";
+                    xeroInvoiceItem.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];
+                }
+                xeroInvoiceItem.TaxType = "NONE";
+                xeroInvoiceItem.Quantity = feeItem.fee_quantity;
+                xeroInvoiceItem.LineAmount = decimal.Parse(feeItem.fee_price_ext);
+                xeroInvoiceItem.UnitAmount = decimal.Parse(feeItem.fee_price_each);
 
                 lineItems.Add(xeroInvoiceItem);
             }
 
+
             return lineItems;
         }
+
+        
+
         public Payment BuildPayment(order_payments payment, Invoice xeroInvoice)
         {
             Payment xeroPayment = new Payment();
@@ -131,9 +179,10 @@ namespace XeroInvoiceIntegration
             xeroPayment.Invoice = xeroInvoice;
             xeroPayment.Date = DateTime.Parse(payment.payment_date.ToString());
             xeroPayment.Amount = Decimal.Parse(payment.payment_amount);
+            xeroPayment.Account = new Account();
             xeroPayment.Account.Code = payment.payment_type_code.Equals("cash") ? "091" :"090";
             xeroPayment.Reference = payment.check_number;
-            
+            xeroPayment.Status = PaymentStatus.Authorised;
             return xeroPayment;
         }
 
@@ -185,5 +234,44 @@ namespace XeroInvoiceIntegration
             return dueDate;
         }
 
+        private string GetQuantityDetailText(order_detail detail)
+        {
+            //Need to look at th detail record and see if the quatity fields are populated.  If so, then we need to build a string to put in the item description.
+            StringBuilder sizeQuantityBuilder = new StringBuilder();
+
+            if (detail.xsmall_qty != null){sizeQuantityBuilder.Append(String.Format(" {0}({1}) ", "XS", detail.xsmall_qty));}
+            if (detail.med_qty != null){sizeQuantityBuilder.Append(String.Format(" {0}({1}) ", "M", detail.med_qty));}
+            if (detail.large_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "L", detail.large_qty));}
+            if (detail.xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "XL", detail.xl_qty));}
+            if (detail.C2xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "2XL", detail.C2xl_qty));}
+            if (detail.C3xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "3XL", detail.C3xl_qty));}
+            if (detail.C4xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "4XL", detail.C4xl_qty));}
+            if (detail.C5xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "5XL", detail.C5xl_qty));}
+            if (detail.other1_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", detail.other1_type, detail.other1_qty));}
+            if (detail.other2_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", detail.other2_type, detail.other2_qty));}
+            if (detail.other3_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", detail.other3_type, detail.other3_qty));}               
+
+            return sizeQuantityBuilder.ToString();
+        }
+
+        private long? GetQuantityTotals(order_detail detail)
+        {
+            long? qtyCount = 0;
+
+            qtyCount = qtyCount + (detail.xsmall_qty ?? 0);
+            qtyCount = qtyCount + (detail.small_qty ?? 0);
+            qtyCount = qtyCount + (detail.med_qty ?? 0);
+            qtyCount = qtyCount + (detail.large_qty ?? 0);
+            qtyCount = qtyCount + (detail.xl_qty ?? 0);
+            qtyCount = qtyCount + (detail.C2xl_qty ?? 0);
+            qtyCount = qtyCount + (detail.C3xl_qty ?? 0);
+            qtyCount = qtyCount + (detail.C4xl_qty ?? 0);
+            qtyCount = qtyCount + (detail.C5xl_qty ?? 0);
+            qtyCount = qtyCount + (detail.other1_qty ?? 0);
+            qtyCount = qtyCount + (detail.other2_qty ?? 0);
+            qtyCount = qtyCount + (detail.other3_qty ?? 0);
+
+            return qtyCount;
+        }
     }
 }

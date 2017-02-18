@@ -93,9 +93,9 @@ namespace XeroInvoiceIntegration
                                     customerHeaderWritten = true;
                                 }
                                 customerCsv.WriteRecord(xeroContact);
-                                
 
-                                WaitCheck(1);
+
+                                if (options.TransmitToXero) { WaitCheck(1); }
                                 xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
 
                                 string orderid = header.order_id.ToString();
@@ -117,7 +117,7 @@ namespace XeroInvoiceIntegration
                                 invoiceCsv.WriteRecord(xeroInvoice);
 
                                 // Create the Invoice
-                                WaitCheck(1);
+                                if (options.TransmitToXero) { WaitCheck(1);}
                                 xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
 
 
@@ -138,7 +138,7 @@ namespace XeroInvoiceIntegration
                                             paymentHeaderWritten = true;
                                         }
                                         paymentCsv.WriteRecord(xeroPayment);
-                                        WaitCheck(1);
+                                        if (options.TransmitToXero) { WaitCheck(1); }
                                         xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
                                         //Console.WriteLine("  Payment Date:{0} - Payment Amt:{1} - Payment Type:{2}",
                                         //    payment.payment_date, payment.payment_amount, payment.payment_type_code);
