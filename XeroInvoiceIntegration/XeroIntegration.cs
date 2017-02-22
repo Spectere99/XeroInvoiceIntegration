@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using Xero.Api.Core;
@@ -30,39 +32,104 @@ namespace XeroInvoiceIntegration
         private List<Invoice> _invoices = null;
         private List<Payment> _payments = null;
 
-        public XeroIntegration()
+        public XeroIntegration(bool transmit)
         {
             //setup logger
             _log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-            _cert = new X509Certificate2(@"E:\Projects\SouthPaw\Development\public_privatekey.pfx", "Spectere99");
-            _private_app_api = new XeroCoreApi("https://api.xero.com", new PrivateAuthenticator(_cert),
-                new Consumer("JSWZ2I77HEVJN3MVPAFHLXURUQO82E", "43W5TPJNATD6JE2XLSQUPPZMG4PPLG"), null,
+
+            var endPoint = ConfigurationManager.AppSettings["EndpointURL"];
+            var certPath = ConfigurationManager.AppSettings["APICertFilePath"];
+            var certPwd = ConfigurationManager.AppSettings["APICertPwd"];
+            var consumerKey = ConfigurationManager.AppSettings["ConsumerKey"];
+            var consumerSecret = ConfigurationManager.AppSettings["ConsumerSecret"];
+
+            _cert = new X509Certificate2(certPath, certPwd);
+            _private_app_api = new XeroCoreApi(endPoint, new PrivateAuthenticator(_cert),
+                new Consumer(consumerKey, consumerSecret), null,
                 new DefaultMapper(), new DefaultMapper());
 
-            _user = new ApiUser { Name = Environment.MachineName };
+            _user = new ApiUser {Name = Environment.MachineName};
             _org = _private_app_api.Organisation;
 
-            int contactCount = _private_app_api.Contacts.Find().Count();
-            int contactPage = 1;
-            _contacts = new List<Contact>();
-            while (contactCount == 100)
+            _log.Info(string.Format("Connecting to Organization: {0}", _org.Name));
+            if (transmit)
             {
-                _contacts.AddRange(_private_app_api.Contacts.Page(contactPage).Find().ToList());
-                contactCount = _private_app_api.Contacts.Page(contactPage).Find().Count();
-                contactPage++;
-            }
+                int callCount = 2;
+                Console.WriteLine(string.Format("Pulling Contacts..."));
+                _log.Info("Pulling Contacts...");
+                int contactCount = _private_app_api.Contacts.Find().Count();
+                int contactPage = 1;
+                _contacts = new List<Contact>();
+                while (contactCount == 100)
+                {
+                    try
+                    {
+                        var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
+                        _contacts.AddRange(returnList);
+                        contactCount = returnList.Count;
+                        Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
+                        contactPage++;
+                    }
+                    catch (Exception)
+                    {
+                        Thread.Sleep(61000);
+                        var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
+                        _contacts.AddRange(returnList);
+                        contactCount = returnList.Count;
+                        Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
+                        contactPage++;
+                    }
 
-            int invoiceCount = _private_app_api.Invoices.Find().Count();
-            int invoicePage = 1;
-            _invoices = new List<Invoice>();
-            while (invoiceCount == 100)
-            {
-                _invoices.AddRange(_private_app_api.Invoices.Page(invoicePage).Find().ToList());
-                invoiceCount = _private_app_api.Invoices.Page(invoicePage).Find().Count();
-                invoicePage++;
-            }
 
-            _payments = _private_app_api.Payments.Find().ToList();
+                    //callCount++;
+                    //if (callCount >= 60)
+                    //{
+                    //    Console.WriteLine("Cooling Off");
+                    //    Thread.Sleep(61000);
+                    //    callCount = 2;
+                    //}
+                }
+                _log.Info(string.Format("Total Customers Pulled: {0}", _contacts.Count));
+                Console.WriteLine("Cooling Off");
+                Thread.Sleep(61000);
+                callCount = 2;
+                Console.WriteLine(string.Format("Pulling Invoices..."));
+                _log.Info("Pulling Invoices...");
+                int invoiceCount = _private_app_api.Invoices.Find().Count();
+                int invoicePage = 1;
+                _invoices = new List<Invoice>();
+                while (invoiceCount == 100)
+                {
+                    try
+                    {
+                        var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
+                        _invoices.AddRange(returnList);
+                        invoiceCount = returnList.Count;
+                        Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
+                        invoicePage++;
+                    }
+                    catch (Exception)
+                    {
+                        Thread.Sleep(61000);
+                        var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
+                        _invoices.AddRange(returnList);
+                        invoiceCount = returnList.Count;
+                        Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
+                        invoicePage++;
+                    }
+
+
+                    //if (callCount >= 60)
+                    //{
+                    //    Console.WriteLine("Cooling Off");
+                    //    Thread.Sleep(61000);
+                    //    callCount = 2;
+                    //}
+                }
+
+                _log.Info(string.Format("Total Invoices Pulled: {0}", _invoices.Count));
+                _payments = _private_app_api.Payments.Find().ToList();
+            }
         }
 
         public Contact CreateContact(Contact newContact, bool transmit)
@@ -107,7 +174,7 @@ namespace XeroInvoiceIntegration
 
         public Invoice CreateInvoice(Invoice newInvoice, bool transmit)
         {
-            var foundInvoice = _invoices.FirstOrDefault(p => p.Number == newInvoice.Number);
+            var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
                 
             Invoice returnInvoice = newInvoice;
             if (foundInvoice != null)

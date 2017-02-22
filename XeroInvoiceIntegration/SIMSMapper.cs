@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
 using SIMSData;
@@ -78,7 +79,7 @@ namespace XeroInvoiceIntegration
             
             xeroInvoice.Contact = contact;
             xeroInvoice.Date = invoiceDate;
-            xeroInvoice.DueDate = CalculateInvoiceDueDate(contact);
+            xeroInvoice.DueDate = CalculateInvoiceDueDate(invoiceDate, contact);
             // Invoice Number  Xero should default based on Account Settings.
             //xeroInvoice.Number = theOrder.order_number;
             
@@ -119,16 +120,19 @@ namespace XeroInvoiceIntegration
                     // pricelist_description + Manufacturer + style# + Color + Size & Qty
                     var lineDescription = string.Format("{0} {1} {2} {3} {4}",
                         (pricelistItems != null) ? pricelistItems.pricelist_description : "Non Inventory Item",
-                        detail.manufacturer, detail.style_code, detail.color_code, detailText);
+                        detail.manufacturer, detail.product_code, detail.color_code, detailText);
 
                     xeroInvoiceItem.Description = lineDescription;
                     xeroInvoiceItem.ItemCode = (itemCodeXRef != null) ? itemCodeXRef.target_item_code : "999";
                 }
                 else
                 {
+                    var detailText = GetQuantityDetailText(detail);
                     List<string> orderScreenTypes = new List<string>(){"rescr", "scrn","screm"};
                     //var itemCodeXRef = dataEntities.item_code_xref.FirstOrDefault(p=>p.source_item_code.Equals(detail.pricelist_id.ToString()));
-                    xeroInvoiceItem.Description = String.Format("Customer Provided for {0}", orderScreenTypes.Contains(theOrder.order_type)? "Screen" : "Embroidery");
+                    xeroInvoiceItem.Description = String.Format("Customer Provided for {0} {1} {2} {3} {4}",
+                        orderScreenTypes.Contains(theOrder.order_type) ? "Screen" : "Embroidery",
+                        detail.manufacturer, detail.product_code, detail.color_code, detailText);
                     xeroInvoiceItem.ItemCode = String.Format("{0}", orderScreenTypes.Contains(theOrder.order_type) ? "Print Only" : "emb");
                 }
                 xeroInvoiceItem.Quantity = detail.item_quantity;
@@ -187,21 +191,21 @@ namespace XeroInvoiceIntegration
         }
 
 
-        private DateTime CalculateInvoiceDueDate(Contact contact)
+        private DateTime CalculateInvoiceDueDate(DateTime completeDate, Contact contact)
         {
-            DateTime dueDate = DateTime.Now.AddDays(5);
+            DateTime dueDate = completeDate.AddDays(5);
             if (contact.PaymentTerms != null && contact.PaymentTerms.Sales != null)
             {
                 switch (contact.PaymentTerms.Sales.TermType)
                 {
                     case PaymentTermType.AfterBillDate: // days after the invoice date.
                         {
-                            dueDate = DateTime.Now.AddDays(contact.PaymentTerms.Sales.Day);
+                            dueDate = completeDate.AddDays(contact.PaymentTerms.Sales.Day);
                             break;
                         }
                     case PaymentTermType.AfterInvoiceMonth: // day of the following month
                         {
-                            DateTime today = DateTime.Today;
+                            DateTime today = completeDate;
                             DateTime endOfMonth = new DateTime(today.Year, today.Month,
                                 DateTime.DaysInMonth(today.Year, today.Month));
                             dueDate = endOfMonth.AddDays(contact.PaymentTerms.Sales.Day);
@@ -209,7 +213,7 @@ namespace XeroInvoiceIntegration
                         }
                     case PaymentTermType.CurrentMonth: // day of the current month
                         {
-                            DateTime today = DateTime.Today;
+                            DateTime today = completeDate;
                             DateTime endOfMonth = new DateTime(today.Year, today.Month, contact.PaymentTerms.Sales.Day);
 
                             dueDate = endOfMonth;
@@ -217,7 +221,7 @@ namespace XeroInvoiceIntegration
                         }
                     case PaymentTermType.DaysAfterBillMonth: //days after the end of the invoice month
                         {
-                            DateTime today = DateTime.Today;
+                            DateTime today = completeDate;
                             DateTime endOfMonth = new DateTime(today.Year, today.Month,
                                 DateTime.DaysInMonth(today.Year, today.Month));
                             dueDate = endOfMonth.AddDays(contact.PaymentTerms.Sales.Day);
@@ -225,7 +229,7 @@ namespace XeroInvoiceIntegration
                         }
                     case PaymentTermType.FollowingMonth: // Day of the following month
                         {
-                            DateTime today = DateTime.Today;
+                            DateTime today = completeDate;
                             dueDate = new DateTime(today.Year, today.Month + 1, contact.PaymentTerms.Sales.Day);
                             break;
                         }
@@ -240,6 +244,7 @@ namespace XeroInvoiceIntegration
             StringBuilder sizeQuantityBuilder = new StringBuilder();
 
             if (detail.xsmall_qty != null){sizeQuantityBuilder.Append(String.Format(" {0}({1}) ", "XS", detail.xsmall_qty));}
+            if (detail.small_qty != null) { sizeQuantityBuilder.Append(String.Format(" {0}({1}) ", "S", detail.small_qty)); }
             if (detail.med_qty != null){sizeQuantityBuilder.Append(String.Format(" {0}({1}) ", "M", detail.med_qty));}
             if (detail.large_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "L", detail.large_qty));}
             if (detail.xl_qty != null){sizeQuantityBuilder.Append(String.Format("{0}({1}) ", "XL", detail.xl_qty));}

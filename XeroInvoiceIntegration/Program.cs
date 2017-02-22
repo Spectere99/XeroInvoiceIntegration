@@ -45,7 +45,7 @@ namespace XeroInvoiceIntegration
                     Directory.CreateDirectory(Environment.CurrentDirectory + @"\audit\");
                 }
 
-                XeroIntegration xeroIntegration = new XeroIntegration();
+                XeroIntegration xeroIntegration = new XeroIntegration(options.TransmitToXero);
 
                 TextWriter customerAuditTextWriter = new StreamWriter(auditCustomerFile);
                 TextWriter invoiceAuditTextWriter = new StreamWriter(auditInvoiceFile);
@@ -59,14 +59,25 @@ namespace XeroInvoiceIntegration
                 bool invoiceHeaderWritten = false;
                 bool paymentHeaderWritten = false;
 
-
+                bool dailyRun = (ConfigurationManager.AppSettings["DailyRun"] == "Y") ? true : false;
+                var startDateConfig = ConfigurationManager.AppSettings["StartDate"];
 
                 SIMSDataEntities dataEntities = new SIMSDataEntities();
                 SIMSMapper simsMapper = new SIMSMapper();
-                DateTime selectDate = DateTime.Parse("2/14/2017"); //RWF - Debug to make sure we have all the data.
-                //DateTime selectDate = DateTime.Now.AddDays(-2);
+                
+                var now = DateTime.Now;
+                var defaultStart = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0);
+                var configStartDate = DateTime.Parse(startDateConfig);
+
+                DateTime selectDate = defaultStart;
+                if (!dailyRun)
+                {
+                    selectDate = configStartDate;
+                }
+
                 var dailyOrderNumbers = dataEntities.order_status_history.Where(p => p.order_status.Equals("com"))
                     .Where(o => o.status_date >= selectDate);
+
                 foreach (var stat in dailyOrderNumbers)
                 {
                     try
@@ -91,8 +102,12 @@ namespace XeroInvoiceIntegration
                                 customerCsv.WriteRecord(xeroContact);
 
 
-                                if (options.TransmitToXero) { WaitCheck(1); }
-                                xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
+                                if (options.TransmitToXero)
+                                {
+                                    WaitCheck(1);
+                                    xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
+                                }
+                                
 
                                 string orderid = header.order_id.ToString();
                                 order_status_history statusHistory =
@@ -113,9 +128,11 @@ namespace XeroInvoiceIntegration
                                 invoiceCsv.WriteRecord(xeroInvoice);
 
                                 // Create the Invoice
-                                if (options.TransmitToXero) { WaitCheck(1);}
-                                xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
-
+                                if (options.TransmitToXero)
+                                {
+                                    WaitCheck(1);
+                                    xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
+                                }
 
                                 //Process Payments
                                 var orderPayments = dataEntities.order_payments.Where(o => o.order_id == orderIdSearch).Where(p=>p.payment_type_code != "oth");
