@@ -48,6 +48,7 @@ namespace XeroInvoiceIntegration
 
             xeroContact.AccountNumber = customer.account_number;
             xeroContact.EmailAddress = person.email_address;
+
             if (person.phone_1 != null)
             {
                 xeroContact.Phones = new List<Phone>();
@@ -57,6 +58,7 @@ namespace XeroInvoiceIntegration
                     PhoneNumber = person.phone_1.Substring(3)
                 });
             }
+
             if (customerAddress != null && customerAddress.address_1 != null)
             {
                 xeroContact.Addresses = new List<Address>();
@@ -178,13 +180,16 @@ namespace XeroInvoiceIntegration
 
         public Payment BuildPayment(order_payments payment, Invoice xeroInvoice)
         {
+            var cashAcct = ConfigurationManager.AppSettings["CashAccountNumber"];
+            var checkingAcct = ConfigurationManager.AppSettings["CheckingAccountNumber"];
             Payment xeroPayment = new Payment();
 
             xeroPayment.Invoice = xeroInvoice;
             xeroPayment.Date = DateTime.Parse(payment.payment_date.ToString());
             xeroPayment.Amount = Decimal.Parse(payment.payment_amount);
             xeroPayment.Account = new Account();
-            xeroPayment.Account.Code = payment.payment_type_code.Equals("cash") ? "091" :"090";
+            
+            xeroPayment.Account.Code = payment.payment_type_code.Equals("cash") ? cashAcct : checkingAcct;
             xeroPayment.Reference = payment.check_number;
             xeroPayment.Status = PaymentStatus.Authorised;
             return xeroPayment;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Net.Mail;
 using System.Threading;
 using CsvHelper;
 using SIMSData;
@@ -94,20 +95,35 @@ namespace XeroInvoiceIntegration
                                 int customerId = int.Parse(header.customer_id.ToString());
                                 
                                 var xeroContact = simsMapper.BuildContact(customerId);
+                                CustomerAudit customerAudit = new CustomerAudit();
                                 if (!customerHeaderWritten)
                                 {
-                                    customerCsv.WriteHeader(xeroContact.GetType());
+                                    customerCsv.WriteHeader(customerAudit.GetType());
                                     customerHeaderWritten = true;
                                 }
-                                customerCsv.WriteRecord(xeroContact);
-
-
+                                
                                 if (options.TransmitToXero)
                                 {
                                     WaitCheck(1);
                                     xeroContact = xeroIntegration.CreateContact(xeroContact, options.TransmitToXero);
                                 }
-                                
+
+                                customerAudit.CustomerID = customerId;
+                                customerAudit.CustomerName = xeroContact.Name;
+                                customerAudit.Address = xeroContact.Addresses.FirstOrDefault().AddressLine1;
+                                customerAudit.City = xeroContact.Addresses.FirstOrDefault().City;
+                                customerAudit.State = xeroContact.Addresses.FirstOrDefault().Region;
+                                customerAudit.Zip = xeroContact.Addresses.FirstOrDefault().PostalCode;
+                                customerAudit.ContactEmail = xeroContact.EmailAddress;
+                                customerAudit.ContactName = string.Format("{0} {1}",
+                                    xeroContact.ContactPersons.FirstOrDefault().FirstName,
+                                    xeroContact.ContactPersons.FirstOrDefault().LastName);
+                                customerAudit.ContactPhone = string.Format("({0}){1}",
+                                    xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
+                                    xeroContact.Phones.FirstOrDefault().PhoneNumber);
+                                customerAudit.Email = xeroContact.EmailAddress;
+
+                                customerCsv.WriteRecord(customerAudit);
 
                                 string orderid = header.order_id.ToString();
                                 order_status_history statusHistory =
@@ -120,20 +136,40 @@ namespace XeroInvoiceIntegration
                                                          assignedTo.last_name.Substring(0, 1).ToUpper() + " " + header.order_number;
                                 //Build Invoice
                                 var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber, xeroContact);
+                                InvoiceAudit invoiceAudit = new InvoiceAudit();
                                 if (!invoiceHeaderWritten)
                                 {
-                                    invoiceCsv.WriteHeader(xeroInvoice.GetType());
+                                    invoiceCsv.WriteHeader(invoiceAudit.GetType());
                                     invoiceHeaderWritten = true;
                                 }
-                                invoiceCsv.WriteRecord(xeroInvoice);
+                                
 
                                 // Create the Invoice
                                 if (options.TransmitToXero)
                                 {
                                     WaitCheck(1);
                                     xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
+                                    var order = from ord in dataEntities.orders
+                                        where ord.order_id == header.order_id
+                                        select ord;
+
+                                    order updOrder = order.Single();
+                                    updOrder.xero_invoice_id = xeroInvoice.Id.ToString();
+
+                                    dataEntities.SaveChanges();
                                 }
 
+                                invoiceAudit.CreateDate = xeroInvoice.Date;
+                                invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
+                                invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
+                                invoiceAudit.LineItemCount = xeroInvoice.LineItems.Count;
+                                invoiceAudit.OrderId = header.order_id;
+                                invoiceAudit.OrderNumber = header.order_number;
+                                invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
+                                invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
+
+
+                                invoiceCsv.WriteRecord(invoiceAudit);
                                 //Process Payments
                                 var orderPayments = dataEntities.order_payments.Where(o => o.order_id == orderIdSearch).Where(p=>p.payment_type_code != "oth");
                                 if (orderPayments.Any())
@@ -144,15 +180,39 @@ namespace XeroInvoiceIntegration
                                     {
 
                                         Payment xeroPayment = simsMapper.BuildPayment(payment, xeroInvoice);
-
+                                        PaymentAudit paymentAudit = new PaymentAudit();
                                         if (!paymentHeaderWritten)
                                         {
-                                            paymentCsv.WriteHeader(xeroPayment.GetType());
+                                            paymentCsv.WriteHeader(paymentAudit.GetType());
                                             paymentHeaderWritten = true;
                                         }
-                                        paymentCsv.WriteRecord(xeroPayment);
-                                        if (options.TransmitToXero) { WaitCheck(1); }
-                                        xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
+                                        
+                                        if (options.TransmitToXero)
+                                        {
+                                            WaitCheck(1);
+                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
+
+                                            var pymt = from pay in dataEntities.order_payments
+                                                where pay.order_payment_id == payment.order_payment_id
+                                                select pay;
+
+                                            order_payments updPayment = pymt.Single();
+
+                                            updPayment.xero_payment_id = xeroPayment.Id.ToString();
+
+                                            dataEntities.SaveChanges();
+                                        }
+
+                                        paymentAudit.CheckNumber = payment.check_number;
+                                        paymentAudit.OrderId = header.order_id;
+                                        paymentAudit.OrderNumber = header.order_number;
+                                        paymentAudit.PaymentAmount = payment.payment_amount;
+                                        paymentAudit.PaymentDate = payment.payment_date;
+                                        paymentAudit.PaymentID = payment.order_payment_id;
+                                        paymentAudit.PaymentType = payment.payment_type_code;
+                                        paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+
+                                        paymentCsv.WriteRecord(paymentAudit);
                                         //Console.WriteLine("  Payment Date:{0} - Payment Amt:{1} - Payment Type:{2}",
                                         //    payment.payment_date, payment.payment_amount, payment.payment_type_code);
                                     }
@@ -175,6 +235,7 @@ namespace XeroInvoiceIntegration
             customerAuditTextWriter.Close();
             invoiceAuditTextWriter.Close();
             paymentAuditTextWriter.Close();
+            //SendCompleteEmail(auditCustomerFile, auditInvoiceFile, auditPaymentFile);
             }
             
             Console.ReadKey();
@@ -197,5 +258,30 @@ namespace XeroInvoiceIntegration
                 }
             }
         }
+
+        private static void SendCompleteEmail(string customerAttch, string invoiceAttch, string paymentAttch)
+        {
+            //var callbackUrl = Url.Action("ConvertReservation", "Registration", new { userId = user.Person.PersonId, code = user.RegistrationCode }, protocol: Request.Url.Scheme);
+
+            System.Net.Mail.MailMessage m = new System.Net.Mail.MailMessage(
+            new System.Net.Mail.MailAddress("rflowers@saber98.com", "Xero Integration"),
+            new System.Net.Mail.MailAddress("daphnepaw@gmail.com"));
+            m.To.Add("flowersr99@gmail.com");
+            m.Subject = "Xero Integration Complete";
+            m.Body = string.Format("Nightly Xero Integration has completed.  Attached are the nightly files.");
+
+            m.Attachments.Add(new System.Net.Mail.Attachment(customerAttch));
+            m.Attachments.Add(new System.Net.Mail.Attachment(invoiceAttch));
+            m.Attachments.Add(new System.Net.Mail.Attachment(paymentAttch));
+
+            m.IsBodyHtml = true;
+            System.Net.Mail.SmtpClient smtp = new System.Net.Mail.SmtpClient("mail.saber98.com");
+            smtp.UseDefaultCredentials = false;
+            smtp.Credentials = new System.Net.NetworkCredential("rflowers@saber98.com", "Sp3ct3r399");
+
+            smtp.EnableSsl = false;
+            smtp.Send(m);
+        }
+
     }
 }
