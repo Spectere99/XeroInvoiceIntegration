@@ -220,6 +220,8 @@ namespace XeroInvoiceIntegration
                                 }
                             }
                         }
+
+
                     }
                     catch (ValidationException valEx)
                     {
