@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Mail;
@@ -10,6 +11,7 @@ using SIMSData;
 using Xero.Api.Core.Model;
 using ValidationException = Xero.Api.Infrastructure.Exceptions.ValidationException;
 using log4net;
+using log4net.Util;
 
 namespace XeroInvoiceIntegration
 {
@@ -20,6 +22,7 @@ namespace XeroInvoiceIntegration
         private static int _transactionCount;
         private static DateTime _lastTime;
         private static TimeSpan _elapsedTimeSpan = TimeSpan.Zero;
+
         static void Main(string[] args)
         {
             //setup commandline Options
@@ -40,32 +43,35 @@ namespace XeroInvoiceIntegration
                                           DateTime.Now.ToString("yyyyMMddhhmmss") + "_Invoice.csv";
                 string auditPaymentFile = Environment.CurrentDirectory + auditLocationBase +
                                           DateTime.Now.ToString("yyyyMMddhhmmss") + "_Payment.csv";
+                string exceptionFile = Environment.CurrentDirectory + auditLocationBase +
+                                          DateTime.Now.ToString("yyyyMMddhhmmss") + "_Exceptions.csv";
 
                 if (!Directory.Exists(Environment.CurrentDirectory + @"\audit\"))
                 {
                     Directory.CreateDirectory(Environment.CurrentDirectory + @"\audit\");
                 }
 
-                XeroIntegration xeroIntegration = new XeroIntegration(options.TransmitToXero);
-
                 TextWriter customerAuditTextWriter = new StreamWriter(auditCustomerFile);
                 TextWriter invoiceAuditTextWriter = new StreamWriter(auditInvoiceFile);
                 TextWriter paymentAuditTextWriter = new StreamWriter(auditPaymentFile);
+                TextWriter exceptionAuditTextWriter = new StreamWriter(exceptionFile);
 
                 var customerCsv = new CsvWriter(customerAuditTextWriter);
                 var invoiceCsv = new CsvWriter(invoiceAuditTextWriter);
                 var paymentCsv = new CsvWriter(paymentAuditTextWriter);
+                var exceptionCsv = new CsvWriter(exceptionAuditTextWriter);
 
                 bool customerHeaderWritten = false;
                 bool invoiceHeaderWritten = false;
                 bool paymentHeaderWritten = false;
+                bool exceptionHeaderWritten = false;
 
                 bool dailyRun = (ConfigurationManager.AppSettings["DailyRun"] == "Y") ? true : false;
                 var startDateConfig = ConfigurationManager.AppSettings["StartDate"];
 
                 SIMSDataEntities dataEntities = new SIMSDataEntities();
                 SIMSMapper simsMapper = new SIMSMapper();
-                
+
                 var now = DateTime.Now;
                 var defaultStart = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0);
                 var configStartDate = DateTime.Parse(startDateConfig);
@@ -75,16 +81,36 @@ namespace XeroInvoiceIntegration
                 {
                     selectDate = configStartDate;
                 }
-
+                DateTime startTime = DateTime.Now;
+               
+                _log.Info("Processing SIMS Data...");
+                _log.Info(string.Format(" Run Date: {0}", DateTime.Now));
+                _log.Info("***************** Parameters *********************");
+                _log.Info(string.Format("** Daily Run: {0}", dailyRun));
+                _log.Info(string.Format("** StartDate Config: {0}", startDateConfig));
+                _log.Info(string.Format("** Configured Start Date: {0}", configStartDate));
+                _log.Info(string.Format("** Select Date: {0}", selectDate));
+                _log.Info(string.Format("** Transmit to XERO?: {0}", options.TransmitToXero));
+                _log.Info(string.Format("** Customer Audit File: {0}", auditCustomerFile));
+                _log.Info(string.Format("** Invoice Audit File: {0}", auditInvoiceFile));
+                _log.Info(string.Format("** Payment Audit File: {0}", auditPaymentFile));
+                _log.Info(string.Format("** Exception Audit File: {0}", exceptionFile));
+                _log.Info("***************** End Parameters *********************");
+                XeroIntegration xeroIntegration = new XeroIntegration(options.TransmitToXero);
                 var dailyOrderNumbers = dataEntities.order_status_history.Where(p => p.order_status.Equals("com"))
                     .Where(o => o.status_date >= selectDate);
-
+                _log.Info(string.Format("********** Processing {0} Daily Orders *************", dailyOrderNumbers.Count() ));
+                
                 foreach (var stat in dailyOrderNumbers)
                 {
+                    CustomerAudit customerAudit = new CustomerAudit();
+                    InvoiceAudit invoiceAudit = new InvoiceAudit();
+                    PaymentAudit paymentAudit = new PaymentAudit();
                     try
                     {
                         var orderIdSearch = int.Parse(stat.order_id);
                         Console.WriteLine("##ORDER #: {0} - Date: {1}", stat.order_id, stat.status_date);
+                        _log.Info(string.Format("##ORDER #: {0} - Date: {1}", stat.order_id, stat.status_date));
                         //file.WriteLine("##ORDER #: {0} - Date: {1}", stat.order_id, stat.status_date);
                         IEnumerable<order> orderHeaders = dataEntities.orders.Where(o => o.order_id == orderIdSearch);
                         foreach (var header in orderHeaders)
@@ -93,15 +119,15 @@ namespace XeroInvoiceIntegration
                             if (header.customer_id != null)
                             {
                                 int customerId = int.Parse(header.customer_id.ToString());
-                                
+
                                 var xeroContact = simsMapper.BuildContact(customerId);
-                                CustomerAudit customerAudit = new CustomerAudit();
+                                customerAudit = new CustomerAudit();
                                 if (!customerHeaderWritten)
                                 {
                                     customerCsv.WriteHeader(customerAudit.GetType());
                                     customerHeaderWritten = true;
                                 }
-                                
+
                                 if (options.TransmitToXero)
                                 {
                                     WaitCheck(1);
@@ -110,45 +136,85 @@ namespace XeroInvoiceIntegration
 
                                 customerAudit.CustomerID = customerId;
                                 customerAudit.CustomerName = xeroContact.Name;
-                                customerAudit.Address = xeroContact.Addresses.FirstOrDefault().AddressLine1;
-                                customerAudit.City = xeroContact.Addresses.FirstOrDefault().City;
-                                customerAudit.State = xeroContact.Addresses.FirstOrDefault().Region;
-                                customerAudit.Zip = xeroContact.Addresses.FirstOrDefault().PostalCode;
-                                customerAudit.ContactEmail = xeroContact.EmailAddress;
-                                customerAudit.ContactName = string.Format("{0} {1}",
-                                    xeroContact.ContactPersons.FirstOrDefault().FirstName,
-                                    xeroContact.ContactPersons.FirstOrDefault().LastName);
-                                customerAudit.ContactPhone = string.Format("({0}){1}",
-                                    xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
-                                    xeroContact.Phones.FirstOrDefault().PhoneNumber);
+                                customerAudit.Address = xeroContact.Addresses != null
+                                    ? xeroContact.Addresses.FirstOrDefault().AddressLine1
+                                    : string.Empty;
+                                customerAudit.City = xeroContact.Addresses != null
+                                    ? xeroContact.Addresses.FirstOrDefault().City
+                                    : string.Empty;
+                                customerAudit.State = xeroContact.Addresses != null
+                                    ? xeroContact.Addresses.FirstOrDefault().Region
+                                    : string.Empty;
+                                customerAudit.Zip = xeroContact.Addresses != null
+                                    ? xeroContact.Addresses.FirstOrDefault().PostalCode
+                                    : string.Empty;
+                                customerAudit.ContactEmail = xeroContact.EmailAddress ?? string.Empty;
+                                if (xeroContact.ContactPersons != null)
+                                {
+                                    customerAudit.ContactName = string.Format("{0} {1}",
+                                        xeroContact.ContactPersons.FirstOrDefault().FirstName,
+                                        xeroContact.ContactPersons.FirstOrDefault().LastName);    
+                                }
+                                if (xeroContact.Phones != null)
+                                {
+                                    customerAudit.ContactPhone = string.Format("({0}){1}",
+                                        xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
+                                        xeroContact.Phones.FirstOrDefault().PhoneNumber);    
+                                }
                                 customerAudit.Email = xeroContact.EmailAddress;
-
                                 customerCsv.WriteRecord(customerAudit);
 
                                 string orderid = header.order_id.ToString();
                                 order_status_history statusHistory =
-                                    dataEntities.order_status_history.Where(o => o.order_id == orderid).FirstOrDefault(d=>d.order_status.Equals("com"));
+                                    dataEntities.order_status_history.Where(o => o.order_id == orderid)
+                                        .FirstOrDefault(d => d.order_status.Equals("com"));
                                 user assignedTo =
                                     dataEntities.users.FirstOrDefault(o => o.user_id == header.assigned_user_id);
 
                                 DateTime completeDate = DateTime.Parse(statusHistory.status_date.ToString());
                                 string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
-                                                         assignedTo.last_name.Substring(0, 1).ToUpper() + " " + header.order_number;
+                                                         assignedTo.last_name.Substring(0, 1).ToUpper() + " " +
+                                                         header.order_number;
                                 //Build Invoice
-                                var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber, xeroContact);
-                                InvoiceAudit invoiceAudit = new InvoiceAudit();
+                                var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber,
+                                    xeroContact);
+                                invoiceAudit = new InvoiceAudit();
                                 if (!invoiceHeaderWritten)
                                 {
                                     invoiceCsv.WriteHeader(invoiceAudit.GetType());
                                     invoiceHeaderWritten = true;
                                 }
-                                
+
 
                                 // Create the Invoice
                                 if (options.TransmitToXero)
                                 {
                                     WaitCheck(1);
                                     xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
+                                    if (xeroInvoice.Id != Guid.Empty)
+                                    {
+                                        // Update SIMS order_status_history table.
+                                        order_status_history orderStatus = new order_status_history();
+                                        orderStatus.order_id = header.order_id.ToString();
+                                        orderStatus.order_status = "inst";
+                                        orderStatus.status_date = DateTime.Now;
+
+                                        dataEntities.order_status_history.Add(orderStatus);
+                                        dataEntities.SaveChanges();
+
+                                        //Check and see if 0 balance.   If so, update status to 'clos' (closed)
+                                        if (double.Parse(header.balance_due) == 0.0)
+                                        {
+                                            order_status_history orderClosedStatus = new order_status_history();
+                                            orderClosedStatus.order_id = header.order_id.ToString();
+                                            orderClosedStatus.order_status = "clos";
+                                            orderClosedStatus.status_date = DateTime.Now;
+
+                                            dataEntities.order_status_history.Add(orderClosedStatus);
+                                            dataEntities.SaveChanges();
+                                        }
+
+                                    }
                                     var order = from ord in dataEntities.orders
                                         where ord.order_id == header.order_id
                                         select ord;
@@ -171,7 +237,9 @@ namespace XeroInvoiceIntegration
 
                                 invoiceCsv.WriteRecord(invoiceAudit);
                                 //Process Payments
-                                var orderPayments = dataEntities.order_payments.Where(o => o.order_id == orderIdSearch).Where(p=>p.payment_type_code != "oth");
+                                var orderPayments =
+                                    dataEntities.order_payments.Where(o => o.order_id == orderIdSearch)
+                                        .Where(p => p.payment_type_code != "oth");
                                 if (orderPayments.Any())
                                 {
                                     Console.WriteLine("  **** Order Payments ****");
@@ -180,17 +248,18 @@ namespace XeroInvoiceIntegration
                                     {
 
                                         Payment xeroPayment = simsMapper.BuildPayment(payment, xeroInvoice);
-                                        PaymentAudit paymentAudit = new PaymentAudit();
+                                        paymentAudit = new PaymentAudit();
                                         if (!paymentHeaderWritten)
                                         {
                                             paymentCsv.WriteHeader(paymentAudit.GetType());
                                             paymentHeaderWritten = true;
                                         }
-                                        
+
                                         if (options.TransmitToXero)
                                         {
                                             WaitCheck(1);
-                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
+                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment,
+                                                options.TransmitToXero);
 
                                             var pymt = from pay in dataEntities.order_payments
                                                 where pay.order_payment_id == payment.order_payment_id
@@ -225,22 +294,167 @@ namespace XeroInvoiceIntegration
                     }
                     catch (ValidationException valEx)
                     {
-                        _log.ErrorFormat("An Error occurred when processing Orders: {0}", valEx.Message);
+                        var st = new StackTrace(valEx, true);
+                        var frame = st.GetFrame(0);
+                        var line = frame.GetFileLineNumber();
+                        ExceptionAudit exceptionAudit = LogExceptionData(valEx, customerAudit, invoiceAudit, paymentAudit);
+                        if (!exceptionHeaderWritten)
+                        {
+                            exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                            exceptionHeaderWritten = true;
+                        }
+                        exceptionCsv.WriteRecord(exceptionAudit);
+                        _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line, valEx.Message);
                         _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
                     }
                     catch (Exception ex)
                     {
-                        _log.ErrorFormat("An Error occurred when processing Orders: {0}", ex.Message);
+                        var st = new StackTrace(ex, true);
+                        var frame = st.GetFrame(0);
+                        var line = frame.GetFileLineNumber();
+                        ExceptionAudit exceptionAudit = LogExceptionData(ex, customerAudit, invoiceAudit, paymentAudit);
+                        if (!exceptionHeaderWritten)
+                        {
+                            exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                            exceptionHeaderWritten = true;
+                        }
+                        exceptionCsv.WriteRecord(exceptionAudit);
+                        _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line, ex.Message);
                         _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
                     }
+
                 }
-            customerAuditTextWriter.Close();
-            invoiceAuditTextWriter.Close();
-            paymentAuditTextWriter.Close();
-            //SendCompleteEmail(auditCustomerFile, auditInvoiceFile, auditPaymentFile);
+                //RWF new ADD 2/28/2017
+                //Check for payments on previous invoices.
+                if (options.TransmitToXero)
+                {
+                    var emptyGuid = Guid.Empty.ToString();
+                    var pastOrderPayments =
+                        dataEntities.order_payments.Where(
+                            p => p.xero_payment_id == null || p.xero_payment_id == emptyGuid);
+                    Console.WriteLine("  **** Processing Payments for Past Invoices ****");
+                    _log.Info("  **** Processing Payments for Past Invoices ****");
+
+                    foreach (order_payments pastPayment in pastOrderPayments)
+                    {
+                        PaymentAudit paymentAudit = new PaymentAudit();
+                        try
+                        {
+                            var pastOrder = dataEntities.orders.SingleOrDefault(p => p.order_id == pastPayment.order_id);
+                            if (pastOrder != null)
+                            {
+                                user assignedTo =
+                                    dataEntities.users.FirstOrDefault(o => o.user_id == pastOrder.assigned_user_id);
+
+                                string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
+                                                         assignedTo.last_name.Substring(0, 1).ToUpper() + " " +
+                                                         pastOrder.order_number;
+
+                                Invoice matchInvoice = xeroIntegration.FindInvoice(referenceNumber);
+
+                                if (matchInvoice != null)
+                                {
+                                    //Apply the payment.
+                                    Payment xeroPayment = simsMapper.BuildPayment(pastPayment, matchInvoice);
+                                    paymentAudit = new PaymentAudit();
+                                    if (!paymentHeaderWritten)
+                                    {
+                                        paymentCsv.WriteHeader(paymentAudit.GetType());
+                                        paymentHeaderWritten = true;
+                                    }
+
+                                    if (options.TransmitToXero)
+                                    {
+                                        WaitCheck(1);
+                                        xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
+
+                                        var pymt = from pay in dataEntities.order_payments
+                                            where pay.order_payment_id == pastPayment.order_payment_id
+                                            select pay;
+
+                                        order_payments updPayment = pymt.Single();
+
+                                        updPayment.xero_payment_id = xeroPayment.Id.ToString();
+
+                                        dataEntities.SaveChanges();
+                                    }
+
+                                    paymentAudit.CheckNumber = pastPayment.check_number;
+                                    paymentAudit.OrderId = pastOrder.order_id;
+                                    paymentAudit.OrderNumber = pastOrder.order_number;
+                                    paymentAudit.PaymentAmount = pastPayment.payment_amount;
+                                    paymentAudit.PaymentDate = pastPayment.payment_date;
+                                    paymentAudit.PaymentID = pastPayment.order_payment_id;
+                                    paymentAudit.PaymentType = pastPayment.payment_type_code;
+                                    paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+
+                                    paymentCsv.WriteRecord(paymentAudit);
+                                    //Check and see if 0 balance.   If so, update status to 'clos' (closed)
+                                    if (double.Parse(pastOrder.balance_due) == 0.0)
+                                    {
+                                        order_status_history orderClosedStatus = new order_status_history();
+                                        orderClosedStatus.order_id = pastOrder.order_id.ToString();
+                                        orderClosedStatus.order_status = "clos";
+                                        orderClosedStatus.status_date = DateTime.Now;
+
+                                        dataEntities.order_status_history.Add(orderClosedStatus);
+                                        dataEntities.SaveChanges();
+                                    }
+                                }
+                            }
+                        }
+                        catch (ValidationException valEx)
+                        {
+                            var st = new StackTrace(valEx, true);
+                            var frame = st.GetFrame(0);
+                            var line = frame.GetFileLineNumber();
+                            ExceptionAudit exceptionAudit = LogExceptionData(valEx, null, null, paymentAudit);
+                            if (!exceptionHeaderWritten)
+                            {
+                                exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionHeaderWritten = true;
+                            }
+                            exceptionCsv.WriteRecord(exceptionAudit);
+                            _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line, valEx.Message);
+                            _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
+                        }
+                        catch (Exception ex)
+                        {
+                            var st = new StackTrace(ex, true);
+                            var frame = st.GetFrame(0);
+                            var line = frame.GetFileLineNumber();
+                            ExceptionAudit exceptionAudit = LogExceptionData(ex, null, null, paymentAudit);
+                            if (!exceptionHeaderWritten)
+                            {
+                                exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionHeaderWritten = true;
+                            }
+                            exceptionCsv.WriteRecord(exceptionAudit);
+                            _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line, ex.Message);
+                            _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
+                        }
+                    }
+
+                }
+                else
+                {
+                    _log.Info("*****  Not Transmitting to Xero.  Skipping Check for Back Payments ********");
+                }
+                customerAuditTextWriter.Close();
+                invoiceAuditTextWriter.Close();
+                paymentAuditTextWriter.Close();
+                exceptionAuditTextWriter.Close();
+                _log.Info("***** Sending Daily Results Email *****");
+                //SendCompleteEmail(auditCustomerFile, auditInvoiceFile, auditPaymentFile, exceptionFile);
+                TimeSpan elapsedTime = DateTime.Now.Subtract(startTime);
+                
+                _log.Info("*******  Process Completed ********");
+                _log.Info(string.Format("** Elapsed Time: {0:c}", elapsedTime));
+                _log.Info("*************************************************");
+
             }
             
-            Console.ReadKey();
+            //Console.ReadKey();
         }
 
         static void WaitCheck(int transCount)
@@ -261,13 +475,13 @@ namespace XeroInvoiceIntegration
             }
         }
 
-        private static void SendCompleteEmail(string customerAttch, string invoiceAttch, string paymentAttch)
+        private static void SendCompleteEmail(string customerAttch, string invoiceAttch, string paymentAttch, string exceptionAttch)
         {
             //var callbackUrl = Url.Action("ConvertReservation", "Registration", new { userId = user.Person.PersonId, code = user.RegistrationCode }, protocol: Request.Url.Scheme);
 
-            System.Net.Mail.MailMessage m = new System.Net.Mail.MailMessage(
-            new System.Net.Mail.MailAddress("rflowers@saber98.com", "Xero Integration"),
-            new System.Net.Mail.MailAddress("daphnepaw@gmail.com"));
+            MailMessage m = new MailMessage(
+            new MailAddress("rflowers@saber98.com", "Xero Integration"),
+            new MailAddress("daphnepaw@gmail.com"));
             m.To.Add("flowersr99@gmail.com");
             m.Subject = "Xero Integration Complete";
             m.Body = string.Format("Nightly Xero Integration has completed.  Attached are the nightly files.");
@@ -275,9 +489,10 @@ namespace XeroInvoiceIntegration
             m.Attachments.Add(new System.Net.Mail.Attachment(customerAttch));
             m.Attachments.Add(new System.Net.Mail.Attachment(invoiceAttch));
             m.Attachments.Add(new System.Net.Mail.Attachment(paymentAttch));
+            m.Attachments.Add(new System.Net.Mail.Attachment(exceptionAttch));
 
             m.IsBodyHtml = true;
-            System.Net.Mail.SmtpClient smtp = new System.Net.Mail.SmtpClient("mail.saber98.com");
+            SmtpClient smtp = new SmtpClient("mail.saber98.com");
             smtp.UseDefaultCredentials = false;
             smtp.Credentials = new System.Net.NetworkCredential("rflowers@saber98.com", "Sp3ct3r399");
 
@@ -285,5 +500,50 @@ namespace XeroInvoiceIntegration
             smtp.Send(m);
         }
 
+        private static ExceptionAudit LogExceptionData(Exception ex, CustomerAudit customerAudit, InvoiceAudit invoiceAudit,
+            PaymentAudit paymentAudit)
+        {
+            ExceptionAudit exceptionAudit = new ExceptionAudit();
+            if (invoiceAudit != null)
+            {
+                exceptionAudit.OrderId = invoiceAudit.OrderId.ToString();
+                exceptionAudit.OrderNumber = invoiceAudit.OrderNumber;
+                exceptionAudit.InvoiceCreateDate = invoiceAudit.CreateDate;
+                exceptionAudit.InvoiceDueDate = invoiceAudit.InvoiceDueDate;
+                exceptionAudit.LineItemCount = invoiceAudit.LineItemCount;
+                exceptionAudit.ReferenceNbr = invoiceAudit.ReferenceNbr;
+                exceptionAudit.InvoiceAmt = invoiceAudit.InvoiceAmt;
+                exceptionAudit.XeroInvoiceId = invoiceAudit.XeroInvoiceId;
+            }
+            if (customerAudit != null)
+            {
+                exceptionAudit.CustomerID = customerAudit.CustomerID;
+                exceptionAudit.XeroCustomerID = customerAudit.XeroCustomerID;
+                exceptionAudit.CustomerName = customerAudit.CustomerName;
+                exceptionAudit.Email = customerAudit.Email;
+                exceptionAudit.Address = customerAudit.Address;
+                exceptionAudit.City = customerAudit.City;
+                exceptionAudit.State = customerAudit.State;
+                exceptionAudit.Zip = customerAudit.Zip;
+                exceptionAudit.ContactName = customerAudit.ContactName;
+                exceptionAudit.ContactEmail = customerAudit.ContactEmail;
+                exceptionAudit.ContactPhone = customerAudit.ContactPhone;
+            }
+            if (paymentAudit != null)
+            {
+                exceptionAudit.OrderId = paymentAudit.OrderId.ToString();
+                exceptionAudit.OrderNumber = paymentAudit.OrderNumber;
+                exceptionAudit.PaymentID  = paymentAudit.PaymentID ;
+                exceptionAudit.XeroPaymentId  = paymentAudit.XeroPaymentId ;
+                exceptionAudit.PaymentDate  = paymentAudit.PaymentDate ;
+                exceptionAudit.PaymentType  = paymentAudit.PaymentType ;
+                exceptionAudit.CheckNumber  = paymentAudit.CheckNumber ;
+                exceptionAudit.PaymentAmount  = paymentAudit.PaymentAmount ;
+            }
+
+            exceptionAudit.ExceptionMessage = Utilities.FlattenException(ex);
+
+            return exceptionAudit;
+        }
     }
 }

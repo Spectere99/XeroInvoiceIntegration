@@ -35,8 +35,8 @@ namespace XeroInvoiceIntegration
             xeroContact.Name = customer.customer_name;
             if (person != null)
             {
-                xeroContact.FirstName = person.first_name.Length > 0 ? person.first_name : "NotProvide";
-                xeroContact.LastName = person.last_name.Length > 0 ? person.last_name : "NotProvided";
+                xeroContact.FirstName = person.first_name ?? "NotProvide";
+                xeroContact.LastName = person.last_name ?? "NotProvided";
                 
                 ContactPerson contactPerson = new ContactPerson();
                 contactPerson.EmailAddress = person.email_address;
@@ -47,17 +47,22 @@ namespace XeroInvoiceIntegration
             }
 
             xeroContact.AccountNumber = customer.account_number;
-            xeroContact.EmailAddress = person.email_address;
-
-            if (person.phone_1 != null)
+            if (person != null)
             {
-                xeroContact.Phones = new List<Phone>();
-                xeroContact.Phones.Add(new Phone()
+                xeroContact.EmailAddress = person.email_address; 
+                
+                if (person.phone_1 != null)
                 {
-                    PhoneAreaCode = person.phone_1.Substring(0, 3),
-                    PhoneNumber = person.phone_1.Substring(3)
-                });
+                    xeroContact.Phones = new List<Phone>();
+                    xeroContact.Phones.Add(new Phone()
+                    {
+                        PhoneAreaCode = person.phone_1.Substring(0, 3),
+                        PhoneNumber = person.phone_1.Substring(3)
+                    });
+                }
             }
+
+           
 
             if (customerAddress != null && customerAddress.address_1 != null)
             {

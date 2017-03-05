@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CustomerAudit.cs" />
+    <Compile Include="ExceptionAudit.cs" />
     <Compile Include="InvoiceAudit.cs" />
     <Compile Include="Options.cs" />
     <Compile Include="PaymentAudit.cs" />

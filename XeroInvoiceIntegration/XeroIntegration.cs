@@ -54,7 +54,6 @@ namespace XeroInvoiceIntegration
             _log.Info(string.Format("Connecting to Organization: {0}", _org.Name));
             if (transmit)
             {
-                int callCount = 2;
                 Console.WriteLine(string.Format("Pulling Contacts..."));
                 _log.Info("Pulling Contacts...");
                 int contactCount = _private_app_api.Contacts.Find().Count();
@@ -79,20 +78,11 @@ namespace XeroInvoiceIntegration
                         Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
                         contactPage++;
                     }
-
-
-                    //callCount++;
-                    //if (callCount >= 60)
-                    //{
-                    //    Console.WriteLine("Cooling Off");
-                    //    Thread.Sleep(61000);
-                    //    callCount = 2;
-                    //}
                 }
+
                 _log.Info(string.Format("Total Customers Pulled: {0}", _contacts.Count));
                 Console.WriteLine("Cooling Off");
                 Thread.Sleep(61000);
-                callCount = 2;
                 Console.WriteLine(string.Format("Pulling Invoices..."));
                 _log.Info("Pulling Invoices...");
                 int invoiceCount = _private_app_api.Invoices.Find().Count();
@@ -117,14 +107,6 @@ namespace XeroInvoiceIntegration
                         Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
                         invoicePage++;
                     }
-
-
-                    //if (callCount >= 60)
-                    //{
-                    //    Console.WriteLine("Cooling Off");
-                    //    Thread.Sleep(61000);
-                    //    callCount = 2;
-                    //}
                 }
 
                 _log.Info(string.Format("Total Invoices Pulled: {0}", _invoices.Count));
@@ -132,6 +114,13 @@ namespace XeroInvoiceIntegration
             }
         }
 
+        public Invoice FindInvoice(string refNumber)
+        {
+            var foundInvoice = _invoices.SingleOrDefault(p => p.Reference == refNumber);
+
+            return foundInvoice;
+
+        }
         public Contact CreateContact(Contact newContact, bool transmit)
         {
             var foundContact = _contacts.FirstOrDefault(p=>p.Name == newContact.Name);
