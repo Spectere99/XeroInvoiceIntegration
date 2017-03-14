@@ -87,12 +87,13 @@ namespace XeroInvoiceIntegration
             xeroInvoice.Contact = contact;
             xeroInvoice.Date = invoiceDate;
             xeroInvoice.DueDate = CalculateInvoiceDueDate(invoiceDate, contact);
+            //xeroInvoice.LineAmountTypes = LineAmountType.NoTax;
             // Invoice Number  Xero should default based on Account Settings.
             //xeroInvoice.Number = theOrder.order_number;
             
             xeroInvoice.Reference = referenceNumber;
-            xeroInvoice.Status = InvoiceStatus.Submitted;
-            xeroInvoice.TotalTax = decimal.Parse(theOrder.tax_amount);
+            xeroInvoice.Status = InvoiceStatus.Draft;
+            //xeroInvoice.TotalTax = decimal.Parse(theOrder.tax_amount);
             xeroInvoice.AmountDue = decimal.Parse(theOrder.total);
             xeroInvoice.Type = InvoiceType.AccountsReceivable;
             xeroInvoice.LineItems = BuildInvoiceLineItems(theOrder);
@@ -131,6 +132,7 @@ namespace XeroInvoiceIntegration
 
                     xeroInvoiceItem.Description = lineDescription;
                     xeroInvoiceItem.ItemCode = (itemCodeXRef != null) ? itemCodeXRef.target_item_code : "999";
+                    xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "OUTPUT": "NONE";
                 }
                 else
                 {
@@ -141,11 +143,11 @@ namespace XeroInvoiceIntegration
                         orderScreenTypes.Contains(theOrder.order_type) ? "Screen" : "Embroidery",
                         detail.manufacturer, detail.product_code, detail.color_code, detailText);
                     xeroInvoiceItem.ItemCode = String.Format("{0}", orderScreenTypes.Contains(theOrder.order_type) ? "Print Only" : "emb");
+                    xeroInvoiceItem.TaxType = "NONE";
                 }
                 xeroInvoiceItem.Quantity = detail.item_quantity;
-                xeroInvoiceItem.LineAmount = decimal.Parse(detail.item_price_ext);
-                xeroInvoiceItem.UnitAmount = decimal.Parse(detail.item_price_each);
-                xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "INPUT": "NONE";
+                xeroInvoiceItem.LineAmount = detail.item_price_ext == null ? 0 : decimal.Parse(detail.item_price_ext);
+                xeroInvoiceItem.UnitAmount = detail.item_price_each == null ? 0 : decimal.Parse(detail.item_price_each);
                 
                 lineItems.Add(xeroInvoiceItem);
             }
@@ -181,7 +183,17 @@ namespace XeroInvoiceIntegration
             return lineItems;
         }
 
-        
+        public LineItem BuildSalesTaxAdjustmentLineItem(decimal? difference)
+        {
+            var xeroInvoiceItem = new LineItem();
+            xeroInvoiceItem.AccountCode = "220";
+            xeroInvoiceItem.ItemCode = "Tax";
+            xeroInvoiceItem.Quantity = 1;
+            xeroInvoiceItem.UnitAmount = -1 * difference;
+            xeroInvoiceItem.TaxType = "NONE";
+
+            return xeroInvoiceItem;
+        }
 
         public Payment BuildPayment(order_payments payment, Invoice xeroInvoice)
         {
@@ -195,7 +207,7 @@ namespace XeroInvoiceIntegration
             xeroPayment.Account = new Account();
             
             xeroPayment.Account.Code = payment.payment_type_code.Equals("cash") ? cashAcct : checkingAcct;
-            xeroPayment.Reference = payment.check_number;
+            xeroPayment.Reference = payment.payment_type_code + " " + payment.check_number;
             xeroPayment.Status = PaymentStatus.Authorised;
             return xeroPayment;
         }

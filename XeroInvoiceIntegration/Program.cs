@@ -12,6 +12,7 @@ using Xero.Api.Core.Model;
 using ValidationException = Xero.Api.Infrastructure.Exceptions.ValidationException;
 using log4net;
 using log4net.Util;
+using Xero.Api.Core.Model.Status;
 
 namespace XeroInvoiceIntegration
 {
@@ -66,12 +67,16 @@ namespace XeroInvoiceIntegration
                 bool paymentHeaderWritten = false;
                 bool exceptionHeaderWritten = false;
 
+
                 bool dailyRun = (ConfigurationManager.AppSettings["DailyRun"] == "Y") ? true : false;
+                bool emailResults = (ConfigurationManager.AppSettings["EmailResults"] == "Y") ? true : false;
+                string[] emailTo = ConfigurationManager.AppSettings["ToEmail"].Split(',');
                 var startDateConfig = ConfigurationManager.AppSettings["StartDate"];
+                var paymentBackDate = DateTime.Parse(ConfigurationManager.AppSettings["PaymentBackDate"]);
 
                 SIMSDataEntities dataEntities = new SIMSDataEntities();
                 SIMSMapper simsMapper = new SIMSMapper();
-
+                
                 var now = DateTime.Now;
                 var defaultStart = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0);
                 var configStartDate = DateTime.Parse(startDateConfig);
@@ -151,15 +156,21 @@ namespace XeroInvoiceIntegration
                                 customerAudit.ContactEmail = xeroContact.EmailAddress ?? string.Empty;
                                 if (xeroContact.ContactPersons != null)
                                 {
-                                    customerAudit.ContactName = string.Format("{0} {1}",
-                                        xeroContact.ContactPersons.FirstOrDefault().FirstName,
-                                        xeroContact.ContactPersons.FirstOrDefault().LastName);    
+                                    if (xeroContact.ContactPersons.Count != 0)
+                                    {
+                                        customerAudit.ContactName = string.Format("{0} {1}",
+                                            xeroContact.ContactPersons.FirstOrDefault().FirstName,
+                                            xeroContact.ContactPersons.FirstOrDefault().LastName);
+                                    }
                                 }
                                 if (xeroContact.Phones != null)
                                 {
-                                    customerAudit.ContactPhone = string.Format("({0}){1}",
-                                        xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
-                                        xeroContact.Phones.FirstOrDefault().PhoneNumber);    
+                                    if (xeroContact.Phones != null || xeroContact.Phones.Count != 0)
+                                    {
+                                        customerAudit.ContactPhone = string.Format("({0}){1}",
+                                            xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
+                                            xeroContact.Phones.FirstOrDefault().PhoneNumber);
+                                    }
                                 }
                                 customerAudit.Email = xeroContact.EmailAddress;
                                 customerCsv.WriteRecord(customerAudit);
@@ -176,121 +187,97 @@ namespace XeroInvoiceIntegration
                                                          assignedTo.last_name.Substring(0, 1).ToUpper() + " " +
                                                          header.order_number;
                                 //Build Invoice
-                                var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber,
-                                    xeroContact);
-                                invoiceAudit = new InvoiceAudit();
-                                if (!invoiceHeaderWritten)
+                                if (header.xero_invoice_id == null)
                                 {
-                                    invoiceCsv.WriteHeader(invoiceAudit.GetType());
-                                    invoiceHeaderWritten = true;
-                                }
-
-
-                                // Create the Invoice
-                                if (options.TransmitToXero)
-                                {
-                                    WaitCheck(1);
-                                    xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
-                                    if (xeroInvoice.Id != Guid.Empty)
+                                    var xeroInvoice = simsMapper.BuildInvoice(header, completeDate, referenceNumber,
+                                        xeroContact);
+                                    invoiceAudit = new InvoiceAudit();
+                                    if (!invoiceHeaderWritten)
                                     {
-                                        // Update SIMS order_status_history table.
-                                        order_status_history orderStatus = new order_status_history();
-                                        orderStatus.order_id = header.order_id.ToString();
-                                        orderStatus.order_status = "inst";
-                                        orderStatus.status_date = DateTime.Now;
-
-                                        dataEntities.order_status_history.Add(orderStatus);
-                                        dataEntities.SaveChanges();
-
-                                        //Check and see if 0 balance.   If so, update status to 'clos' (closed)
-                                        if (double.Parse(header.balance_due) == 0.0)
-                                        {
-                                            order_status_history orderClosedStatus = new order_status_history();
-                                            orderClosedStatus.order_id = header.order_id.ToString();
-                                            orderClosedStatus.order_status = "clos";
-                                            orderClosedStatus.status_date = DateTime.Now;
-
-                                            dataEntities.order_status_history.Add(orderClosedStatus);
-                                            dataEntities.SaveChanges();
-                                        }
-
+                                        invoiceCsv.WriteHeader(invoiceAudit.GetType());
+                                        invoiceHeaderWritten = true;
                                     }
-                                    var order = from ord in dataEntities.orders
-                                        where ord.order_id == header.order_id
-                                        select ord;
 
-                                    order updOrder = order.Single();
-                                    updOrder.xero_invoice_id = xeroInvoice.Id.ToString();
-
-                                    dataEntities.SaveChanges();
-                                }
-
-                                invoiceAudit.CreateDate = xeroInvoice.Date;
-                                invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
-                                invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
-                                invoiceAudit.LineItemCount = xeroInvoice.LineItems.Count;
-                                invoiceAudit.OrderId = header.order_id;
-                                invoiceAudit.OrderNumber = header.order_number;
-                                invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
-                                invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
-
-
-                                invoiceCsv.WriteRecord(invoiceAudit);
-                                //Process Payments
-                                var orderPayments =
-                                    dataEntities.order_payments.Where(o => o.order_id == orderIdSearch)
-                                        .Where(p => p.payment_type_code != "oth");
-                                if (orderPayments.Any())
-                                {
-                                    Console.WriteLine("  **** Order Payments ****");
-                                    //file.WriteLine("  **** Order Payments ****");
-                                    foreach (var payment in orderPayments)
+                                    // Create the Invoice
+                                    if (options.TransmitToXero)
                                     {
+                                        WaitCheck(1);
+                                        var simsInvoiceTotal = xeroInvoice.AmountDue;
 
-                                        Payment xeroPayment = simsMapper.BuildPayment(payment, xeroInvoice);
-                                        paymentAudit = new PaymentAudit();
-                                        if (!paymentHeaderWritten)
+                                        xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
+                                        decimal? invoiceDiff = xeroInvoice.AmountDue - simsInvoiceTotal;
+                                        if (invoiceDiff != (decimal?) 0.0)
                                         {
-                                            paymentCsv.WriteHeader(paymentAudit.GetType());
-                                            paymentHeaderWritten = true;
-                                        }
-
-                                        if (options.TransmitToXero)
-                                        {
-                                            WaitCheck(1);
-                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment,
+                                            xeroIntegration.DeleteInvoice(xeroInvoice, options.TransmitToXero);
+                                            xeroInvoice.LineItems.Add(
+                                                simsMapper.BuildSalesTaxAdjustmentLineItem(invoiceDiff));
+                                            xeroInvoice.Status = InvoiceStatus.Draft;
+                                            xeroInvoice.Id = Guid.Empty;
+                                            xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice,
                                                 options.TransmitToXero);
-
-                                            var pymt = from pay in dataEntities.order_payments
-                                                where pay.order_payment_id == payment.order_payment_id
-                                                select pay;
-
-                                            order_payments updPayment = pymt.Single();
-
-                                            updPayment.xero_payment_id = xeroPayment.Id.ToString();
-
-                                            dataEntities.SaveChanges();
                                         }
+                                        if (xeroInvoice.Id != Guid.Empty)
+                                        {
+                                            int nextPk =
+                                                dataEntities.order_status_history.OrderByDescending(
+                                                        p => p.order_status_history_id)
+                                                    .FirstOrDefault()
+                                                    .order_status_history_id +
+                                                1;
+                                            // Update SIMS order_status_history table.
+                                            order_status_history orderStatus = new order_status_history();
+                                            orderStatus.order_status_history_id = nextPk;
+                                            orderStatus.order_id = header.order_id.ToString();
+                                            orderStatus.order_status = "inst";
+                                            orderStatus.status_date = DateTime.Now;
 
-                                        paymentAudit.CheckNumber = payment.check_number;
-                                        paymentAudit.OrderId = header.order_id;
-                                        paymentAudit.OrderNumber = header.order_number;
-                                        paymentAudit.PaymentAmount = payment.payment_amount;
-                                        paymentAudit.PaymentDate = payment.payment_date;
-                                        paymentAudit.PaymentID = payment.order_payment_id;
-                                        paymentAudit.PaymentType = payment.payment_type_code;
-                                        paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+                                            //dataEntities.Database.Log = s => Debug.WriteLine(s);
 
-                                        paymentCsv.WriteRecord(paymentAudit);
-                                        //Console.WriteLine("  Payment Date:{0} - Payment Amt:{1} - Payment Type:{2}",
-                                        //    payment.payment_date, payment.payment_amount, payment.payment_type_code);
+                                            dataEntities.order_status_history.Add(orderStatus);
+                                            dataEntities.SaveChanges();
+
+                                            //Check and see if 0 balance.   If so, update status to 'clos' (closed)
+                                            if (double.Parse(header.balance_due) == 0.0)
+                                            {
+                                                int clsdPk = dataEntities.order_status_history.OrderByDescending(
+                                                                     p => p.order_status_history_id)
+                                                                 .FirstOrDefault()
+                                                                 .order_status_history_id +
+                                                             1;
+                                                order_status_history orderClosedStatus = new order_status_history();
+                                                orderClosedStatus.order_status_history_id = clsdPk;
+                                                orderClosedStatus.order_id = header.order_id.ToString();
+                                                orderClosedStatus.order_status = "clos";
+                                                orderClosedStatus.status_date = DateTime.Now;
+
+                                                dataEntities.order_status_history.Add(orderClosedStatus);
+                                                dataEntities.SaveChanges();
+                                            }
+
+                                        }
+                                        var order = from ord in dataEntities.orders
+                                            where ord.order_id == header.order_id
+                                            select ord;
+
+                                        order updOrder = order.Single();
+                                        updOrder.xero_invoice_id = xeroInvoice.Id.ToString();
+
+                                        dataEntities.SaveChanges();
                                     }
 
+                                    invoiceAudit.CreateDate = xeroInvoice.Date;
+                                    invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
+                                    invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
+                                    invoiceAudit.LineItemCount = xeroInvoice.LineItems.Count;
+                                    invoiceAudit.OrderId = header.order_id;
+                                    invoiceAudit.OrderNumber = header.order_number;
+                                    invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
+                                    invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
+
+                                    invoiceCsv.WriteRecord(invoiceAudit);
                                 }
                             }
                         }
-
-
                     }
                     catch (ValidationException valEx)
                     {
@@ -328,12 +315,18 @@ namespace XeroInvoiceIntegration
                 //Check for payments on previous invoices.
                 if (options.TransmitToXero)
                 {
+                    //TODO:
+                    //Exclude Today's date because we cannot apply a payment to an invoice that has not been approved.
+                    // Check why payment's tax value is not coming across.
                     var emptyGuid = Guid.Empty.ToString();
-                    var pastOrderPayments =
-                        dataEntities.order_payments.Where(
-                            p => p.xero_payment_id == null || p.xero_payment_id == emptyGuid);
+                    var pastOrderPaymentsNotProcessed = dataEntities.order_payments.Where(p => p.xero_payment_id == null || p.xero_payment_id == emptyGuid).ToList();
+                    var pastOrderPaymentsDated = pastOrderPaymentsNotProcessed.Where(o => o.payment_date >= paymentBackDate).ToList();
+                    var pastOrderPayments = pastOrderPaymentsDated.Where(q=>q.payment_date != DateTime.Now).ToList();
+
                     Console.WriteLine("  **** Processing Payments for Past Invoices ****");
+                    Console.WriteLine(string.Format("Processing {0} Past Payments", pastOrderPayments.Count()));
                     _log.Info("  **** Processing Payments for Past Invoices ****");
+                    _log.Info(string.Format("Processing {0} Past Payments", pastOrderPayments.Count()));
 
                     foreach (order_payments pastPayment in pastOrderPayments)
                     {
@@ -341,6 +334,7 @@ namespace XeroInvoiceIntegration
                         try
                         {
                             var pastOrder = dataEntities.orders.SingleOrDefault(p => p.order_id == pastPayment.order_id);
+                            string orderId = pastOrder.order_id.ToString();
                             if (pastOrder != null)
                             {
                                 user assignedTo =
@@ -349,57 +343,166 @@ namespace XeroInvoiceIntegration
                                 string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
                                                          assignedTo.last_name.Substring(0, 1).ToUpper() + " " +
                                                          pastOrder.order_number;
+                                //Check order to see if it is closed.
+                                //CAN'T DO THIS BECAUSE OF MULTIPLE PAYMENTS ON THE SAME DAY THAT MAKE THE INVOICE BALANCE DUE = $0.00.  NEED TO FIGURE BETTER WAY.
 
-                                Invoice matchInvoice = xeroIntegration.FindInvoice(referenceNumber);
-
-                                if (matchInvoice != null)
+                                var foundOrderStatus = dataEntities.order_status_history.SingleOrDefault(p => p.order_id == orderId && p.order_status == "clos");
+                                if (foundOrderStatus == null)
                                 {
-                                    //Apply the payment.
-                                    Payment xeroPayment = simsMapper.BuildPayment(pastPayment, matchInvoice);
-                                    paymentAudit = new PaymentAudit();
-                                    if (!paymentHeaderWritten)
+                                    // Check to see if it is in invoiced status
+                                    foundOrderStatus =
+                                        dataEntities.order_status_history.SingleOrDefault(
+                                            p => p.order_id == orderId && p.order_status == "inst");
+
+                                    if (foundOrderStatus != null)
                                     {
-                                        paymentCsv.WriteHeader(paymentAudit.GetType());
-                                        paymentHeaderWritten = true;
+                                        Invoice matchInvoice = xeroIntegration.FindInvoiceDirect(referenceNumber);
+                                        if (matchInvoice != null)
+                                        {
+                                            if (matchInvoice.Status != InvoiceStatus.Paid)
+                                            {
+                                                bool foundMatchedPayment = false;
+                                                //Check to see if the payment is a prepayment.
+                                                var prePayment =
+                                                    matchInvoice.Prepayments.SingleOrDefault(
+                                                        p => p.Total == decimal.Parse(pastPayment.payment_amount) && p.Date == pastPayment.payment_date);
+                                                if (prePayment != null) //We found a prepayment
+                                                {
+                                                    //Update the Sims payment with the pre-payment ID
+                                                    var pymt = from pay in dataEntities.order_payments
+                                                               where pay.order_payment_id == pastPayment.order_payment_id
+                                                               select pay;
+
+                                                    order_payments updPayment = pymt.Single();
+
+                                                    updPayment.xero_payment_id = prePayment.Id.ToString();
+
+                                                    dataEntities.SaveChanges();
+                                                    foundMatchedPayment = true;
+                                                }
+
+                                                var existingPayment =
+                                                    matchInvoice.Payments.SingleOrDefault(
+                                                        p => p.Amount == decimal.Parse(pastPayment.payment_amount) && p.Date == pastPayment.payment_date);
+                                                if (existingPayment != null) //We found a prepayment
+                                                {
+                                                    //Update the Sims payment with the pre-payment ID
+                                                    var pymt = from pay in dataEntities.order_payments
+                                                               where pay.order_payment_id == pastPayment.order_payment_id
+                                                               select pay;
+
+                                                    order_payments updPayment = pymt.Single();
+
+                                                    updPayment.xero_payment_id = existingPayment.Id.ToString();
+
+                                                    dataEntities.SaveChanges();
+                                                    foundMatchedPayment = true;
+                                                }
+
+                                                if (!foundMatchedPayment)
+                                                {
+                                                    //Apply the payment.
+                                                    Payment xeroPayment = simsMapper.BuildPayment(pastPayment,
+                                                        matchInvoice);
+                                                    paymentAudit = new PaymentAudit();
+                                                    if (!paymentHeaderWritten)
+                                                    {
+                                                        paymentCsv.WriteHeader(paymentAudit.GetType());
+                                                        paymentHeaderWritten = true;
+                                                    }
+
+
+                                                    if (options.TransmitToXero)
+                                                    {
+                                                        if (pastPayment.payment_type_code != "oth")
+                                                        {
+                                                            WaitCheck(1);
+                                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment,
+                                                                options.TransmitToXero); 
+                                                        }
+                                                        else
+                                                        {
+                                                            xeroPayment.Id =
+                                                                new Guid("99999999-9999-9999-9999-999999999999");
+                                                        }
+                                                        var pymt = from pay in dataEntities.order_payments
+                                                                where
+                                                                pay.order_payment_id == pastPayment.order_payment_id
+                                                                select pay;
+                                                        order_payments updPayment = pymt.Single();
+
+                                                        updPayment.xero_payment_id = xeroPayment.Id.ToString();
+
+                                                        dataEntities.SaveChanges();
+
+                                                        paymentAudit.CheckNumber = pastPayment.check_number;
+                                                        paymentAudit.OrderId = pastOrder.order_id;
+                                                        paymentAudit.OrderNumber = pastOrder.order_number;
+                                                        paymentAudit.PaymentAmount = pastPayment.payment_amount;
+                                                        paymentAudit.PaymentDate = pastPayment.payment_date;
+                                                        paymentAudit.PaymentID = pastPayment.order_payment_id;
+                                                        paymentAudit.PaymentType = pastPayment.payment_type_code;
+                                                        paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+
+                                                        paymentCsv.WriteRecord(paymentAudit);
+                                                    }
+                                                    
+                                                }
+                                                //RWF TODO- NEED TO FIGURE BETTER WAY. SEE ABOVE NOTE ABOUT MULTI-PAYMENTS ON SAME DAY.
+                                                //Check and see if 0 balance.   If so, update status to 'clos' (closed)
+                                                if (double.Parse(pastOrder.balance_due) == 0.0)
+                                                {
+                                                    int clsdPk = dataEntities.order_status_history.OrderByDescending(
+                                                                         p => p.order_status_history_id)
+                                                                     .FirstOrDefault()
+                                                                     .order_status_history_id +
+                                                                 1;
+                                                    order_status_history orderClosedStatus = new order_status_history();
+                                                    orderClosedStatus.order_status_history_id = clsdPk;
+                                                    orderClosedStatus.order_id = pastOrder.order_id.ToString();
+                                                    orderClosedStatus.order_status = "clos";
+                                                    orderClosedStatus.status_date = DateTime.Now;
+
+                                                    dataEntities.order_status_history.Add(orderClosedStatus);
+                                                    dataEntities.SaveChanges();
+                                                }
+                                            }
+                                            else //This inovice was paid, so we need to do some updating.
+                                            {
+                                                //Update the Payment with the Xero Payment ID
+                                                var payment =
+                                                    matchInvoice.Payments.SingleOrDefault(
+                                                        p => p.Amount == decimal.Parse(pastPayment.payment_amount));
+                                                if (payment != null)
+                                                {
+                                                    var pymt = from pay in dataEntities.order_payments
+                                                        where pay.order_payment_id == pastPayment.order_payment_id
+                                                        select pay;
+
+                                                    order_payments updPayment = pymt.Single();
+
+                                                    updPayment.xero_payment_id = payment.Id.ToString();
+
+                                                    dataEntities.SaveChanges();
+                                                }
+                                                // Now update the status of the SIMS invoice to closed.
+                                                int clsdPk = dataEntities.order_status_history.OrderByDescending(
+                                                                             p => p.order_status_history_id)
+                                                                         .FirstOrDefault()
+                                                                         .order_status_history_id +
+                                                                     1;
+                                                order_status_history orderClosedStatus = new order_status_history();
+                                                orderClosedStatus.order_status_history_id = clsdPk;
+                                                orderClosedStatus.order_id = pastOrder.order_id.ToString();
+                                                orderClosedStatus.order_status = "clos";
+                                                orderClosedStatus.status_date = DateTime.Now;
+
+                                                dataEntities.order_status_history.Add(orderClosedStatus);
+                                                dataEntities.SaveChanges();
+                                            }
+                                        }
                                     }
-
-                                    if (options.TransmitToXero)
-                                    {
-                                        WaitCheck(1);
-                                        xeroPayment = xeroIntegration.CreatePayment(xeroPayment, options.TransmitToXero);
-
-                                        var pymt = from pay in dataEntities.order_payments
-                                            where pay.order_payment_id == pastPayment.order_payment_id
-                                            select pay;
-
-                                        order_payments updPayment = pymt.Single();
-
-                                        updPayment.xero_payment_id = xeroPayment.Id.ToString();
-
-                                        dataEntities.SaveChanges();
-                                    }
-
-                                    paymentAudit.CheckNumber = pastPayment.check_number;
-                                    paymentAudit.OrderId = pastOrder.order_id;
-                                    paymentAudit.OrderNumber = pastOrder.order_number;
-                                    paymentAudit.PaymentAmount = pastPayment.payment_amount;
-                                    paymentAudit.PaymentDate = pastPayment.payment_date;
-                                    paymentAudit.PaymentID = pastPayment.order_payment_id;
-                                    paymentAudit.PaymentType = pastPayment.payment_type_code;
-                                    paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
-
-                                    paymentCsv.WriteRecord(paymentAudit);
-                                    //Check and see if 0 balance.   If so, update status to 'clos' (closed)
-                                    if (double.Parse(pastOrder.balance_due) == 0.0)
-                                    {
-                                        order_status_history orderClosedStatus = new order_status_history();
-                                        orderClosedStatus.order_id = pastOrder.order_id.ToString();
-                                        orderClosedStatus.order_status = "clos";
-                                        orderClosedStatus.status_date = DateTime.Now;
-
-                                        dataEntities.order_status_history.Add(orderClosedStatus);
-                                        dataEntities.SaveChanges();
-                                    }
+                                    
                                 }
                             }
                         }
@@ -445,7 +548,10 @@ namespace XeroInvoiceIntegration
                 paymentAuditTextWriter.Close();
                 exceptionAuditTextWriter.Close();
                 _log.Info("***** Sending Daily Results Email *****");
-                //SendCompleteEmail(auditCustomerFile, auditInvoiceFile, auditPaymentFile, exceptionFile);
+                if (emailResults)
+                {
+                    SendCompleteEmail(emailTo, auditCustomerFile, auditInvoiceFile, auditPaymentFile, exceptionFile);
+                }
                 TimeSpan elapsedTime = DateTime.Now.Subtract(startTime);
                 
                 _log.Info("*******  Process Completed ********");
@@ -475,14 +581,17 @@ namespace XeroInvoiceIntegration
             }
         }
 
-        private static void SendCompleteEmail(string customerAttch, string invoiceAttch, string paymentAttch, string exceptionAttch)
+        private static void SendCompleteEmail(string[] emailTo, string customerAttch, string invoiceAttch, string paymentAttch, string exceptionAttch)
         {
             //var callbackUrl = Url.Action("ConvertReservation", "Registration", new { userId = user.Person.PersonId, code = user.RegistrationCode }, protocol: Request.Url.Scheme);
-
+            string primaryEmail = emailTo[0];
             MailMessage m = new MailMessage(
             new MailAddress("rflowers@saber98.com", "Xero Integration"),
-            new MailAddress("daphnepaw@gmail.com"));
-            m.To.Add("flowersr99@gmail.com");
+            new MailAddress(primaryEmail));
+            foreach (string email in emailTo.Skip(1))
+            {
+                m.To.Add(email);    
+            }
             m.Subject = "Xero Integration Complete";
             m.Body = string.Format("Nightly Xero Integration has completed.  Attached are the nightly files.");
 
