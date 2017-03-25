@@ -96,11 +96,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CustomerAudit.cs" />
-    <Compile Include="ExceptionAudit.cs" />
-    <Compile Include="InvoiceAudit.cs" />
+    <Compile Include="Common.cs" />
+    <Compile Include="DataObjects\CustomerAudit.cs" />
+    <Compile Include="DataObjects\ExceptionAudit.cs" />
+    <Compile Include="DataObjects\InvoiceAudit.cs" />
     <Compile Include="Options.cs" />
-    <Compile Include="PaymentAudit.cs" />
+    <Compile Include="DataObjects\PaymentAudit.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SIMSMapper.cs" />
