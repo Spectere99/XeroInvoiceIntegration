@@ -124,6 +124,11 @@ namespace XeroInvoiceIntegration
             }
         }
 
+        public Prepayment FindPrepaymentById(string prepaymentId)
+        {
+            return _private_app_api.Prepayments.Find(prepaymentId);
+        }
+
         public Invoice FindInvoiceDirect(string refNumber)
         {
             StringBuilder sb = new StringBuilder();

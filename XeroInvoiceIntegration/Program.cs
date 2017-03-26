@@ -323,13 +323,14 @@ namespace XeroInvoiceIntegration
                     var pastOrderPaymentsNotProcessed = dataEntities.order_payments.Where(p => p.xero_payment_id == null || p.xero_payment_id == emptyGuid).ToList();
                     var pastOrderPaymentsDated = pastOrderPaymentsNotProcessed.Where(o => o.payment_date >= paymentBackDate).ToList();
                     var pastOrderPayments = pastOrderPaymentsDated.Where(q=>q.payment_date != DateTime.Now).ToList();
+                    var pastOrderPaymentsNotNull = pastOrderPayments.Where(p => p.payment_amount != null).ToList();
 
                     Console.WriteLine("  **** Processing Payments for Past Invoices ****");
-                    Console.WriteLine(string.Format("Processing {0} Past Payments", pastOrderPayments.Count()));
+                    Console.WriteLine(string.Format("Processing {0} Past Payments", pastOrderPaymentsNotNull.Count()));
                     _log.Info("  **** Processing Payments for Past Invoices ****");
-                    _log.Info(string.Format("Processing {0} Past Payments", pastOrderPayments.Count()));
+                    _log.Info(string.Format("Processing {0} Past Payments", pastOrderPaymentsNotNull.Count()));
 
-                    foreach (order_payments pastPayment in pastOrderPayments)
+                    foreach (order_payments pastPayment in pastOrderPaymentsNotNull)
                     {
                         PaymentAudit paymentAudit = new PaymentAudit();
                         try
@@ -363,95 +364,136 @@ namespace XeroInvoiceIntegration
                                             if (matchInvoice.Status != InvoiceStatus.Paid)
                                             {
                                                 bool foundMatchedPayment = false;
+                                                // Get All payments for the order.
+                                                int? ordId = int.Parse(orderId);
+                                                var allPayments =
+                                                    dataEntities.order_payments.Where(
+                                                        p => p.order_id == ordId).ToList();
                                                 //Check to see if the payment is a prepayment.
-                                                var prePayment =
-                                                    matchInvoice.Prepayments.SingleOrDefault(
-                                                        p => p.Total == decimal.Parse(pastPayment.payment_amount) && p.Date == pastPayment.payment_date);
-                                                if (prePayment != null) //We found a prepayment
+                                                foreach (order_payments payment in allPayments)
                                                 {
-                                                    //Update the Sims payment with the pre-payment ID
-                                                    Common.UpdateSIMSPaymentComplete(prePayment.Id, pastPayment);
-                                                    //var pymt = from pay in dataEntities.order_payments
-                                                    //           where pay.order_payment_id == pastPayment.order_payment_id
-                                                    //           select pay;
+                                                    Prepayment prePayment = null;
 
-                                                    //order_payments updPayment = pymt.Single();
-
-                                                    //updPayment.xero_payment_id = prePayment.Id.ToString();
-
-                                                    //dataEntities.SaveChanges();
-                                                    foundMatchedPayment = true;
-                                                }
-
-                                                var existingPayment =
-                                                    matchInvoice.Payments.SingleOrDefault(
-                                                        p => p.Amount == decimal.Parse(pastPayment.payment_amount) && p.Date == pastPayment.payment_date);
-                                                if (existingPayment != null) //We found a prepayment
-                                                {
-                                                    //Update the Sims payment with the pre-payment ID
-                                                    Common.UpdateSIMSPaymentComplete(existingPayment.Id, pastPayment);
-
-                                                    //var pymt = from pay in dataEntities.order_payments
-                                                    //           where pay.order_payment_id == pastPayment.order_payment_id
-                                                    //           select pay;
-
-                                                    //order_payments updPayment = pymt.Single();
-
-                                                    //updPayment.xero_payment_id = existingPayment.Id.ToString();
-
-                                                    //dataEntities.SaveChanges();
-                                                    foundMatchedPayment = true;
-                                                }
-
-                                                if (!foundMatchedPayment)
-                                                {
-                                                    //Apply the payment.
-                                                    Payment xeroPayment = simsMapper.BuildPayment(pastPayment,
-                                                        matchInvoice);
-                                                    paymentAudit = new PaymentAudit();
-                                                    if (!paymentHeaderWritten)
+                                                    if (matchInvoice.Prepayments != null)
                                                     {
-                                                        paymentCsv.WriteHeader(paymentAudit.GetType());
-                                                        paymentHeaderWritten = true;
+                                                        foreach (Prepayment basePrePayment in matchInvoice.Prepayments)
+                                                        {
+                                                            Prepayment fullPrePayment =
+                                                                xeroIntegration.FindPrepaymentById(
+                                                                    basePrePayment.Id.ToString());
+
+                                                            if (fullPrePayment != null)
+                                                            {
+                                                                foreach (
+                                                                    PrepaymentAllocation allocation in
+                                                                    fullPrePayment.Allocations)
+                                                                {
+                                                                    if (fullPrePayment.Date == payment.payment_date &&
+                                                                        allocation.Amount == decimal.Parse(payment.payment_amount))
+                                                                    {
+                                                                        prePayment = fullPrePayment;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     }
-
-
-                                                    if (options.TransmitToXero)
+                                                    if (prePayment != null) //We found a prepayment
                                                     {
-                                                        if (pastPayment.payment_type_code != "oth")
-                                                        {
-                                                            WaitCheck(1);
-                                                            xeroPayment = xeroIntegration.CreatePayment(xeroPayment,
-                                                                options.TransmitToXero); 
-                                                        }
-                                                        else
-                                                        {
-                                                            xeroPayment.Id =
-                                                                new Guid("99999999-9999-9999-9999-999999999999");
-                                                        }
-                                                        Common.UpdateSIMSPaymentComplete(xeroPayment.Id, pastPayment);
+                                                        //Update the Sims payment with the pre-payment ID
+                                                        Common.UpdateSIMSPaymentComplete(prePayment.Id, payment);
                                                         //var pymt = from pay in dataEntities.order_payments
-                                                        //        where
-                                                        //        pay.order_payment_id == pastPayment.order_payment_id
-                                                        //        select pay;
+                                                        //           where pay.order_payment_id == pastPayment.order_payment_id
+                                                        //           select pay;
+
                                                         //order_payments updPayment = pymt.Single();
 
-                                                        //updPayment.xero_payment_id = xeroPayment.Id.ToString();
+                                                        //updPayment.xero_payment_id = prePayment.Id.ToString();
 
                                                         //dataEntities.SaveChanges();
-
-                                                        paymentAudit.CheckNumber = pastPayment.check_number;
-                                                        paymentAudit.OrderId = pastOrder.order_id;
-                                                        paymentAudit.OrderNumber = pastOrder.order_number;
-                                                        paymentAudit.PaymentAmount = pastPayment.payment_amount;
-                                                        paymentAudit.PaymentDate = pastPayment.payment_date;
-                                                        paymentAudit.PaymentID = pastPayment.order_payment_id;
-                                                        paymentAudit.PaymentType = pastPayment.payment_type_code;
-                                                        paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
-
-                                                        paymentCsv.WriteRecord(paymentAudit);
+                                                        foundMatchedPayment = true;
                                                     }
-                                                    
+
+                                                    Payment existingPayment = null;
+
+                                                    foreach (Payment basePayment in matchInvoice.Payments)
+                                                    {
+                                                        if (basePayment.Reference.Contains(payment.check_number) &&
+                                                            basePayment.Amount == decimal.Parse(payment.payment_amount) &&
+                                                            basePayment.Date == payment.payment_date)
+                                                        {
+                                                            existingPayment = basePayment;
+                                                            break;
+                                                        }
+                                                    }
+
+                                                    if (existingPayment != null) //We found a prepayment
+                                                    {
+                                                        //Update the Sims payment with the pre-payment ID
+                                                        Common.UpdateSIMSPaymentComplete(existingPayment.Id, payment);
+
+                                                        //var pymt = from pay in dataEntities.order_payments
+                                                        //           where pay.order_payment_id == pastPayment.order_payment_id
+                                                        //           select pay;
+
+                                                        //order_payments updPayment = pymt.Single();
+
+                                                        //updPayment.xero_payment_id = existingPayment.Id.ToString();
+
+                                                        //dataEntities.SaveChanges();
+                                                        foundMatchedPayment = true;
+                                                    }
+
+                                                    if (!foundMatchedPayment)
+                                                    {
+                                                        //Apply the payment.
+                                                        Payment xeroPayment = simsMapper.BuildPayment(pastPayment,
+                                                            matchInvoice);
+                                                        paymentAudit = new PaymentAudit();
+                                                        if (!paymentHeaderWritten)
+                                                        {
+                                                            paymentCsv.WriteHeader(paymentAudit.GetType());
+                                                            paymentHeaderWritten = true;
+                                                        }
+
+
+                                                        if (options.TransmitToXero)
+                                                        {
+                                                            if (pastPayment.payment_type_code != "oth")
+                                                            {
+                                                                WaitCheck(1);
+                                                                xeroPayment = xeroIntegration.CreatePayment(xeroPayment,
+                                                                    options.TransmitToXero);
+                                                            }
+                                                            else
+                                                            {
+                                                                xeroPayment.Id =
+                                                                    new Guid("99999999-9999-9999-9999-999999999999");
+                                                            }
+                                                            Common.UpdateSIMSPaymentComplete(xeroPayment.Id, pastPayment);
+                                                            //var pymt = from pay in dataEntities.order_payments
+                                                            //        where
+                                                            //        pay.order_payment_id == pastPayment.order_payment_id
+                                                            //        select pay;
+                                                            //order_payments updPayment = pymt.Single();
+
+                                                            //updPayment.xero_payment_id = xeroPayment.Id.ToString();
+
+                                                            //dataEntities.SaveChanges();
+
+                                                            paymentAudit.CheckNumber = pastPayment.check_number;
+                                                            paymentAudit.OrderId = pastOrder.order_id;
+                                                            paymentAudit.OrderNumber = pastOrder.order_number;
+                                                            paymentAudit.PaymentAmount = pastPayment.payment_amount;
+                                                            paymentAudit.PaymentDate = pastPayment.payment_date;
+                                                            paymentAudit.PaymentID = pastPayment.order_payment_id;
+                                                            paymentAudit.PaymentType = pastPayment.payment_type_code;
+                                                            paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+
+                                                            paymentCsv.WriteRecord(paymentAudit);
+                                                        }
+
+                                                    }
                                                 }
                                                 //RWF TODO- NEED TO FIGURE BETTER WAY. SEE ABOVE NOTE ABOUT MULTI-PAYMENTS ON SAME DAY.
                                                 //Check and see if 0 balance.   If so, update status to 'clos' (closed)
