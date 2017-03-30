@@ -14,10 +14,10 @@ namespace XeroInvoiceIntegration
         public static string FlattenException(Exception ex)
         {
             StringBuilder sb = new StringBuilder();
-
+            sb.AppendLine(ex.Message);
             if (ex.InnerException != null)
             {
-                sb.Append(FlattenException(ex.InnerException));
+                sb.AppendLine(FlattenException(ex.InnerException));
             }
 
             return sb.ToString();

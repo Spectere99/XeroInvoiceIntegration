@@ -32,10 +32,13 @@ namespace XeroInvoiceIntegration
             customer_person person = dataEntities.customer_person.Where(p=>p.email_address!=null).FirstOrDefault(p => p.customer_id == customer.customer_id);
 
             Contact xeroContact = new Contact();
-            xeroContact.Name = customer.customer_name;
+            var fixCustomerName = customer.customer_name.Replace("(Parent)", "")
+                .Replace("(parent)", "")
+                .Replace("(P)", "");
+            xeroContact.Name = fixCustomerName;
             if (person != null)
             {
-                xeroContact.FirstName = person.first_name ?? "NotProvide";
+                xeroContact.FirstName = person.first_name ?? "NotProvided";
                 xeroContact.LastName = person.last_name ?? "NotProvided";
                 
                 ContactPerson contactPerson = new ContactPerson();
@@ -45,6 +48,7 @@ namespace XeroInvoiceIntegration
                 xeroContact.ContactPersons = new List<ContactPerson>();
                 xeroContact.ContactPersons.Add(contactPerson);
             }
+            
 
             xeroContact.AccountNumber = customer.account_number;
             if (person != null)
@@ -80,19 +84,40 @@ namespace XeroInvoiceIntegration
             return xeroContact;
         }
 
-        public Invoice BuildInvoice(order theOrder, DateTime invoiceDate, string referenceNumber, Contact contact)
+        public Invoice BuildInvoice(order theOrder, DateTime invoiceDate, string referenceNumber, Contact contact, string invoiceStatus)
         {
             Invoice xeroInvoice = new Invoice();
             
             xeroInvoice.Contact = contact;
             xeroInvoice.Date = invoiceDate;
             xeroInvoice.DueDate = CalculateInvoiceDueDate(invoiceDate, contact);
+            
             //xeroInvoice.LineAmountTypes = LineAmountType.NoTax;
             // Invoice Number  Xero should default based on Account Settings.
             //xeroInvoice.Number = theOrder.order_number;
             
             xeroInvoice.Reference = referenceNumber;
-            xeroInvoice.Status = InvoiceStatus.Draft;
+            if (invoiceStatus != string.Empty)
+            {
+                switch (invoiceStatus)
+                {
+                    case "Draft":
+                    {
+                        xeroInvoice.Status = InvoiceStatus.Draft;
+                        break;
+                    }
+                    case "Submitted":
+                    {
+                        xeroInvoice.Status = InvoiceStatus.Submitted;
+                        break;
+                    }
+                    default:
+                    {
+                        xeroInvoice.Status = InvoiceStatus.Draft;
+                        break;
+                    }
+                }
+            }
             //xeroInvoice.TotalTax = decimal.Parse(theOrder.tax_amount);
             xeroInvoice.AmountDue = decimal.Parse(theOrder.total);
             xeroInvoice.Type = InvoiceType.AccountsReceivable;
@@ -109,6 +134,16 @@ namespace XeroInvoiceIntegration
 
             IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id);
             //TODO:  Add check for a valid details.  If quantity or price is null, then it is an invalid line item and an exception needs to be thrown and recorded.
+            if (theOrder.purchase_order != null)
+            {
+                LineItem poLine = new LineItem();
+                poLine.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];
+                poLine.Description = theOrder.purchase_order;
+                poLine.ItemCode = "998";
+                poLine.LineAmount = 0;
+                poLine.TaxType = "NONE";
+                lineItems.Add(poLine);
+            }
             foreach (var detail in orderDetails)
             {
                 var priceListId = detail.pricelist_id ?? default(int);

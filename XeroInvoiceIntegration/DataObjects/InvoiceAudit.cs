@@ -12,6 +12,7 @@ namespace XeroInvoiceIntegration.DataObjects
         public DateTime? InvoiceDueDate { get; set; }
         public int LineItemCount { get; set; }
         public decimal? InvoiceAmt { get; set; }
-        
+        public string Action { get; set; }
+
     }
 }

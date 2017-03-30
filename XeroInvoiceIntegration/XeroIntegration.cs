@@ -9,14 +9,17 @@ using System.Threading.Tasks;
 using log4net;
 using Xero.Api.Core;
 using Xero.Api.Core.Model;
+using Xero.Api.Core.Model.Setup;
 using Xero.Api.Core.Model.Status;
 using Xero.Api.Core.Request;
 using Xero.Api.Example.Applications.Private;
 using Xero.Api.Example.Applications.Public;
 using Xero.Api.Example.TokenStores;
+using Xero.Api.Infrastructure.Exceptions;
 using Xero.Api.Infrastructure.OAuth;
 using Xero.Api.Infrastructure.ThirdParty.ServiceStack.Text;
 using Xero.Api.Serialization;
+using Organisation = Xero.Api.Core.Model.Organisation;
 
 namespace XeroInvoiceIntegration
 {
@@ -33,9 +36,9 @@ namespace XeroInvoiceIntegration
         private List<Invoice> _invoices = null;
         private List<Payment> _payments = null;
 
-        public XeroIntegration(bool transmit)
+        public XeroIntegration(bool transmit, bool dailyProcess)
         {
-            //setup logger
+            //setup logger, 
             _log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
             var endPoint = ConfigurationManager.AppSettings["EndpointURL"];
@@ -56,91 +59,122 @@ namespace XeroInvoiceIntegration
                 _org = _private_app_api.Organisation;
 
                 _log.Info(string.Format("Connecting to Organization: {0}", _org.Name));
-                if (transmit)
+                //if (transmit)
+                //{
+                Console.WriteLine(string.Format("Pulling Contacts..."));
+                _log.Info("Pulling Contacts...");
+                int contactCount = _private_app_api.Contacts.Find().Count();
+                int contactPage = 1;
+                var contactReturnList = new List<Contact>();
+                _contacts = new List<Contact>();
+                while (contactCount == 100)
                 {
-                    Console.WriteLine(string.Format("Pulling Contacts..."));
-                    _log.Info("Pulling Contacts...");
-                    int contactCount = _private_app_api.Contacts.Find().Count();
-                    int contactPage = 1;
-                    _contacts = new List<Contact>();
-                    while (contactCount == 100)
+                    try
                     {
-                        try
-                        {
-                            var returnList =
-                                _private_app_api.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
-                            //var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
-                            _contacts.AddRange(returnList);
-                            contactCount = returnList.Count;
-                            Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
-                            contactPage++;
-                        }
-                        catch (Exception)
-                        {
-                            Thread.Sleep(61000);
-                            var returnList =
-                                _private_app_api.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
-                            //var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
-                            _contacts.AddRange(returnList);
-                            contactCount = returnList.Count;
-                            Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
-                            contactPage++;
-                        }
+                        contactReturnList =
+                            _private_app_api.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
+                        //var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
+                        _contacts.AddRange(contactReturnList);
+                        contactCount = contactReturnList.Count;
+                        Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
+                        contactPage++;
                     }
-
-                    _log.Info(string.Format("Total Customers Pulled: {0}", _contacts.Count));
-                    //Console.WriteLine("Cooling Off");
-                    //Thread.Sleep(61000);
-                    Console.WriteLine(string.Format("Pulling Invoices..."));
-                    _log.Info("Pulling Invoices...");
-                    int invoiceCount = _private_app_api.Invoices.Find().Count();
-                    int invoicePage = 1;
-                    _invoices = new List<Invoice>();
-                    while (invoiceCount == 100)
+                    catch (Exception)
                     {
-                        try
-                        {
-                            var returnList =
-                                _private_app_api.Invoices.Where(
-                                        "Status<>\"PAID\" AND Status<>\"VOIDED\" AND Status<>\"DELETED\" AND TYPE==\"ACCREC\"")
-                                    .Page(invoicePage)
-                                    .Find()
-                                    .ToList();
-                            //var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
-                            _invoices.AddRange(returnList);
-                            invoiceCount = returnList.Count;
-                            Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
-                            invoicePage++;
-                        }
-                        catch (Exception)
-                        {
-                            Thread.Sleep(61000);
-                            var returnList =
-                                _private_app_api.Invoices.Where(
-                                        "Status<>\"PAID\" AND Status<>\"VOIDED\" AND Status<>\"DELETED\" AND TYPE==\"ACCREC\"")
-                                    .Page(invoicePage)
-                                    .Find()
-                                    .ToList();
-                            //var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
-                            _invoices.AddRange(returnList);
-                            invoiceCount = returnList.Count;
-                            Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
-                            invoicePage++;
-                        }
+                        Thread.Sleep(61000);
+                        var returnList =
+                            _private_app_api.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
+                        //var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
+                        _contacts.AddRange(returnList);
+                        contactCount = returnList.Count;
+                        Console.WriteLine(string.Format("Customer Count: {0}", _contacts.Count));
+                        contactPage++;
                     }
-
-                    _log.Info(string.Format("Total Invoices Pulled: {0}", _invoices.Count));
-                    Console.WriteLine("Cooling Off");
-                    Thread.Sleep(61000);
-                    _payments = _private_app_api.Payments.Find().ToList();
                 }
+
+                _log.Info(string.Format("Total Customers Pulled: {0}", _contacts.Count));
+                //Console.WriteLine("Cooling Off");
+                //Thread.Sleep(61000);
+                Console.WriteLine(string.Format("Pulling Invoices..."));
+                _log.Info("Pulling Invoices...");
+                int invoiceCount = _private_app_api.Invoices.Find().Count();
+                int invoicePage = 1;
+                _invoices = new List<Invoice>();
+                var invoiceQuery = string.Empty;
+
+                var returnInvoiceList = new List<Invoice>();
+                invoiceQuery = dailyProcess
+                    ? "Status<>\"PAID\" AND Status<>\"VOIDED\" AND Status<>\"DELETED\" AND TYPE==\"ACCREC\""
+                    : "Status<>\"VOIDED\" AND Status<>\"DELETED\" AND TYPE==\"ACCREC\"";
+
+                while (invoiceCount == 100)
+                {
+                    ;
+                    try
+                    {
+                        if (dailyProcess)
+                        {
+                            returnInvoiceList =
+                                _private_app_api.Invoices.Where(invoiceQuery)
+                                    .Page(invoicePage)
+                                    .Find()
+                                    .ToList();
+                        }
+                        else
+                        {
+                            returnInvoiceList =
+                                _private_app_api.Invoices.Where(invoiceQuery)
+                                    .ModifiedSince(DateTime.Now.AddDays(-30))
+                                    .Page(invoicePage)
+                                    .Find()
+                                    .ToList();
+                        }
+                        //var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
+                        _invoices.AddRange(returnInvoiceList);
+                        invoiceCount = returnInvoiceList.Count;
+                        Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
+                        invoicePage++;
+                    }
+                    catch (Exception)
+                    {
+                        Thread.Sleep(61000);
+                        if (dailyProcess)
+                        {
+                            returnInvoiceList =
+                                _private_app_api.Invoices.Where(invoiceQuery)
+                                    .Page(invoicePage)
+                                    .Find()
+                                    .ToList();
+                        }
+                        else
+                        {
+                            returnInvoiceList =
+                                _private_app_api.Invoices.Where(invoiceQuery)
+                                    .ModifiedSince(DateTime.Now.AddDays(-30))
+                                    .Page(invoicePage)
+                                    .Find()
+                                    .ToList();
+                        }
+                        //var returnList = _private_app_api.Invoices.Page(invoicePage).Find().ToList();
+                        _invoices.AddRange(returnInvoiceList);
+                        invoiceCount = returnInvoiceList.Count;
+                        Console.WriteLine(string.Format("Invoice Count: {0}", _invoices.Count));
+                        invoicePage++;
+                    }
+                }
+
+                _log.Info(string.Format("Total Invoices Pulled: {0}", _invoices.Count));
+                Console.WriteLine("Cooling Off");
+                Thread.Sleep(30000);
+                _payments = _private_app_api.Payments.Find().ToList();
             }
+            //}
             catch (Exception ex)
             {
                 _log.Error(string.Format("Erorr Text: {0}", ex.Message));
                 throw new Exception("An Error occurred inside of XeroIntegration", ex);
             }
-        
+
         }
 
         public Prepayment FindPrepaymentById(string prepaymentId)
@@ -160,13 +194,27 @@ namespace XeroInvoiceIntegration
             //sb.Append("PAID");
             //sb.Append("\"");
             string searchString = sb.ToString();
-
-            var returnList = _private_app_api.Invoices.Where(searchString).Find().ToList();
             Invoice returnInvoice = null;
-            if (returnList.Count > 0)
+            try
             {
-                returnInvoice = returnList.SingleOrDefault();
+                var returnList = _private_app_api.Invoices.Where(searchString).Find().ToList();
+                
+                if (returnList.Count > 0)
+                {
+                    returnInvoice = returnList.SingleOrDefault();
+                }
             }
+            catch (Exception)
+            {
+                Thread.Sleep(61000);
+                var returnList = _private_app_api.Invoices.Where(searchString).Find().ToList();
+                
+                if (returnList.Count > 0)
+                {
+                    returnInvoice = returnList.SingleOrDefault();
+                }
+            }
+            
             return returnInvoice;
         }
 
@@ -177,59 +225,77 @@ namespace XeroInvoiceIntegration
             return foundInvoice;
 
         }
-        public Contact CreateContact(Contact newContact, bool transmit)
+
+
+        public Tuple<Contact, string> CreateContact(Contact newContact, bool transmit)
         {
-            var foundContact = _contacts.FirstOrDefault(p=>p.Name == newContact.Name);
-            
+            var foundContact = _contacts.FirstOrDefault(p => p.Name == newContact.Name);
+            var actionType = "FOUND";
+            int retryCount = 0;
             Contact returnContact = newContact;
-            
-            if (foundContact != null)
+            //int idx = 0;
+            bool addedContact = false;
+
+            while (!addedContact)
             {
-                //Update Contact
-                newContact.Id = foundContact.Id;
-                _log.InfoFormat("Updating Contact: {0}:{1}", newContact.Name, newContact.Id);
-                _log.DebugFormat("--Contact XML--");
-                _log.Debug(Utilities.FormatXML(newContact.ToXml()));
-                returnContact = transmit ? _private_app_api.Contacts.Update(newContact) : newContact;
+                try
+                {
+                    if (foundContact != null)
+                    {
+                        //Update Contact
+                        newContact.Id = foundContact.Id;
+                        _log.InfoFormat("Contact Found: {0}:{1}", newContact.Name, newContact.Id);
+                        _log.DebugFormat("--Contact XML--");
+                        _log.Debug(Utilities.FormatXML(newContact.ToXml()));
+                        returnContact = newContact;
+                        //returnContact = transmit ? _private_app_api.Contacts.Update(newContact) : newContact;
+                        addedContact = true;
+                    }
+                    else //New Contact
+                    {
+                        _log.InfoFormat("Creating Contact: {0}:{1}", newContact.Name, newContact.Id);
+                        _log.DebugFormat("--Contact XML--");
+                        _log.Debug(Utilities.FormatXML(newContact.ToXml()));
+                        returnContact = transmit ? _private_app_api.Contacts.Create(newContact) : newContact;
+                        actionType = "CREATED";
+                        addedContact = true;
+                    }
+
+                }
+                catch (ValidationException valEx) 
+                {
+                    //Validation exceptions from Xero occurr because the same person is listed for multiple Customers and Xero does not like that.  
+                    // If we hit this, then we will remove the person, but leave the email address and still save the Customer so the Invoice can be
+                    // created in the future.
+                    if (retryCount > 0)
+                    {
+                        addedContact = true;
+                        returnContact = newContact;
+                        actionType = "SKIPPED";
+                    }
+                    
+                    newContact.ContactPersons = null;
+                    newContact.FirstName = null;
+                    newContact.LastName = null;
+                    retryCount++;
+                }
             }
-            else //New Contact
-            {
-                
-                _log.InfoFormat("Creating Contact: {0}:{1}", newContact.Name, newContact.Id);
-                _log.DebugFormat("--Contact XML--");
-                _log.Debug(Utilities.FormatXML(newContact.ToXml()));
-                returnContact = transmit ? _private_app_api.Contacts.Create(newContact) : newContact;
-            }
 
 
-            return returnContact;
-
-            //Create Contact
-
-
-            // Public Application Sample
-            //var public_app_api = new XeroCoreApi("https://api.xero.com", new PublicAuthenticator("https://api.xero.com", "https://api.xero.com", "oob",
-            //    new MemoryTokenStore()),
-            //    new Consumer("F9WJSI6VC9TFJSOA6GPO6DFV8GFH1R", "KZZKTVEISETLPKXDAM3ZB7HQJTRQLM"), user,
-            //    new DefaultMapper(), new DefaultMapper());
-
-            //var public_contacts = public_app_api.Contacts.Find().ToList();
-
+            return new Tuple<Contact, string>(returnContact, actionType);
         }
 
-        public Invoice CreateInvoice(Invoice newInvoice, bool transmit)
+        public Tuple<Invoice, string> CreateInvoice(Invoice newInvoice, bool transmit)
         {
             var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
-                
+            var actionType = "FOUND"; 
             Invoice returnInvoice = newInvoice;
             if (foundInvoice != null)
             {
                 //Do we need to update the invoice if it is already created or do we just report it????
                 newInvoice.Id = foundInvoice.Id;
                 _log.InfoFormat("Invoice Exists: {0}:{1}", foundInvoice.Reference, foundInvoice.Id);
-                //_log.DebugFormat("--Invoice XML--");
-                //_log.Debug(Utilities.FormatXML(foundInvoice.ToXml()));
-                //returnContact = private_app_api.Contacts.Update(newContact);
+               
             }
             else //New Contact
             {
@@ -237,21 +303,22 @@ namespace XeroInvoiceIntegration
                 _log.DebugFormat("--Invoice XML--");
                 _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
                 returnInvoice = transmit ? _private_app_api.Invoices.Create(newInvoice) : newInvoice;
+                actionType = "CREATED";
             }
-            return returnInvoice;
+            return new Tuple<Invoice, string>(returnInvoice, actionType);
         }
 
-        public Invoice UpdateInvoice(Invoice newInvoice, bool transmit)
+        public Tuple<Invoice, string> UpdateInvoice(Invoice newInvoice, bool transmit)
         {
             //var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
-
+            var actionType = "UPDATE";
             _log.InfoFormat("Adjusting Invoice for Salestax: {0}:{1}", newInvoice.Reference, newInvoice.Id);
             _log.DebugFormat("--Invoice XML--");
             _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
-            var returnInvoice = _private_app_api.Invoices.Update(newInvoice);
+            var returnInvoice = transmit ? _private_app_api.Invoices.Update(newInvoice) : newInvoice;
             
            
-            return returnInvoice;
+            return new Tuple<Invoice, string>(returnInvoice, actionType);
         }
 
         public void DeleteInvoice(Invoice delInvoice, bool transmit)
@@ -261,15 +328,18 @@ namespace XeroInvoiceIntegration
             _log.InfoFormat("Removing Invoice for Salestax: {0}:{1}", delInvoice.Reference, delInvoice.Id);
             _log.DebugFormat("--Invoice XML--");
             _log.Debug(Utilities.FormatXML(delInvoice.ToXml()));
-            _private_app_api.Invoices.Update(delInvoice);
+            if (transmit)
+            {
+                _private_app_api.Invoices.Update(delInvoice);
+            }
         }
 
-        public Payment CreatePayment(Payment newPayment, bool transmit)
+        public Tuple<Payment, string> CreatePayment(Payment newPayment, bool transmit)
         {
             // Check on prepayments.
             // Checking payment's invoice number against
-            var foundPayment = _payments.FirstOrDefault(p => p.Reference == newPayment.Reference);
-                
+            var foundPayment = _payments.FirstOrDefault(p => p.Invoice.Reference == newPayment.Invoice.Reference);
+            var actionType = "FOUND"; 
             Payment returnPayment = newPayment;
             if (foundPayment != null)
             {
@@ -286,8 +356,9 @@ namespace XeroInvoiceIntegration
                 _log.Debug(Utilities.FormatXML(newPayment.ToXml()));
                 
                 returnPayment = transmit? _private_app_api.Payments.Create(newPayment) : newPayment;
+                actionType = "CREATED";
             }
-            return returnPayment;
+            return new Tuple<Payment, string>(returnPayment, actionType);
         }
     }
 }

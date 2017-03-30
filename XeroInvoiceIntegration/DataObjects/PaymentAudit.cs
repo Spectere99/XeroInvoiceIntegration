@@ -12,6 +12,7 @@ namespace XeroInvoiceIntegration.DataObjects
         public string PaymentAmount { get; set; }
         public string OrderNumber { get; set; }
         public int OrderId { get; set; }
+        public string Action { get; set; }
 
     }
 }
