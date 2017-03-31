@@ -11,6 +11,8 @@ using SIMSData;
 using Xero.Api.Core.Model;
 using ValidationException = Xero.Api.Infrastructure.Exceptions.ValidationException;
 using log4net;
+using log4net.Appender;
+using log4net.Repository.Hierarchy;
 using log4net.Util;
 using Microsoft.Win32.SafeHandles;
 using Xero.Api.Core.Model.Status;
@@ -30,6 +32,10 @@ namespace XeroInvoiceIntegration
         {
             //setup commandline Options
             var options = new Options();
+            TextWriter customerAuditTextWriter;
+            TextWriter invoiceAuditTextWriter;
+            TextWriter paymentAuditTextWriter;
+            TextWriter exceptionAuditTextWriter;
 
             _lastTime = DateTime.Now;
             if (CommandLine.Parser.Default.ParseArguments(args, options))
@@ -58,10 +64,10 @@ namespace XeroInvoiceIntegration
                         Directory.CreateDirectory(Environment.CurrentDirectory + @"\audit\");
                     }
 
-                    TextWriter customerAuditTextWriter = new StreamWriter(auditCustomerFile);
-                    TextWriter invoiceAuditTextWriter = new StreamWriter(auditInvoiceFile);
-                    TextWriter paymentAuditTextWriter = new StreamWriter(auditPaymentFile);
-                    TextWriter exceptionAuditTextWriter = new StreamWriter(exceptionFile);
+                    customerAuditTextWriter = new StreamWriter(auditCustomerFile);
+                    invoiceAuditTextWriter = new StreamWriter(auditInvoiceFile);
+                    paymentAuditTextWriter = new StreamWriter(auditPaymentFile);
+                    exceptionAuditTextWriter = new StreamWriter(exceptionFile);
 
                     var customerCsv = new CsvWriter(customerAuditTextWriter);
                     var invoiceCsv = new CsvWriter(invoiceAuditTextWriter);
@@ -613,9 +619,18 @@ namespace XeroInvoiceIntegration
                     _log.Info("*******  Process Completed ********");
                     _log.Info(string.Format("** Elapsed Time: {0:c}", elapsedTime));
                     _log.Info("*************************************************");
+
+                    var rootAppender = ((Hierarchy)LogManager.GetRepository())
+                                         .Root.Appenders.OfType<FileAppender>()
+                                         .FirstOrDefault();
+
+                    string filename = rootAppender != null ? rootAppender.File : string.Empty;
+                    SendSupportCompleteEmail(exceptionFile, filename);
                 }
                 catch (Exception ex)
                 {
+                    
+                    
                     _log.Error("!!!!!!!! ERROR !!!!!!!!!!");
                     _log.ErrorFormat(" Error: {0}", ex.Message);
                     _log.ErrorFormat(" Error Inner Exception: {0}", Utilities.FlattenException(ex));
@@ -625,7 +640,13 @@ namespace XeroInvoiceIntegration
                     _log.Info("*******  Process Completed ********");
                     _log.Info(string.Format("** Elapsed Time: {0:c}", elapsedTime));
                     _log.Info("*************************************************");
-                    
+                    //Get the log file so we can send it to Support.
+                    var rootAppender = ((Hierarchy)LogManager.GetRepository())
+                                         .Root.Appenders.OfType<FileAppender>()
+                                         .FirstOrDefault();
+
+                    string filename = rootAppender != null ? rootAppender.File : string.Empty;
+                    SendSupportCompleteEmail(filename);  //Sends just the Log file.
                 }
             }
             
@@ -654,6 +675,7 @@ namespace XeroInvoiceIntegration
         {
 
             var mailServer = ConfigurationManager.AppSettings["SMTPServer"];
+            var mailPort = int.Parse(ConfigurationManager.AppSettings["SMTPPort"]);
             var mailAuth = ConfigurationManager.AppSettings["SMTPAuth"];
             var mailPass = ConfigurationManager.AppSettings["SMTPPass"];
             var fromEmail = ConfigurationManager.AppSettings["FromEmail"];
@@ -676,7 +698,68 @@ namespace XeroInvoiceIntegration
             m.Attachments.Add(new System.Net.Mail.Attachment(exceptionAttch));
 
             m.IsBodyHtml = true;
-            SmtpClient smtp = new SmtpClient(mailServer);
+            SmtpClient smtp = new SmtpClient(mailServer, mailPort);
+            smtp.UseDefaultCredentials = false;
+            smtp.Credentials = new System.Net.NetworkCredential(mailAuth, mailPass);
+
+            smtp.EnableSsl = false;
+            smtp.Send(m);
+        }
+
+        private static void SendSupportCompleteEmail(string exceptionAttch, string logFileAttach)
+        {
+
+            var mailServer = ConfigurationManager.AppSettings["SMTPServer"];
+            var mailPort = int.Parse(ConfigurationManager.AppSettings["SMTPPort"]);
+            var mailAuth = ConfigurationManager.AppSettings["SMTPAuth"];
+            var mailPass = ConfigurationManager.AppSettings["SMTPPass"];
+            var fromEmail = ConfigurationManager.AppSettings["FromEmail"];
+            var fromText = ConfigurationManager.AppSettings["FromText"];
+
+            string primaryEmail = ConfigurationManager.AppSettings["SupportEmail"];
+
+            MailMessage m = new MailMessage(
+            new MailAddress(fromEmail, fromText),
+            new MailAddress(primaryEmail));
+            
+            m.Subject = "SUPPORT - Xero Integration Complete";
+            m.Body = string.Format("Nightly Xero Integration has completed.  Attached is the Exception files.");
+
+            m.Attachments.Add(new System.Net.Mail.Attachment(exceptionAttch));
+            m.Attachments.Add(new System.Net.Mail.Attachment(logFileAttach));
+
+            m.IsBodyHtml = true;
+            SmtpClient smtp = new SmtpClient(mailServer, mailPort);
+            smtp.UseDefaultCredentials = false;
+            smtp.Credentials = new System.Net.NetworkCredential(mailAuth, mailPass);
+
+            smtp.EnableSsl = false;
+            smtp.Send(m);
+        }
+
+        private static void SendSupportCompleteEmail(string logFileAttach)
+        {
+
+            var mailServer = ConfigurationManager.AppSettings["SMTPServer"];
+            var mailPort = int.Parse(ConfigurationManager.AppSettings["SMTPPort"]);
+            var mailAuth = ConfigurationManager.AppSettings["SMTPAuth"];
+            var mailPass = ConfigurationManager.AppSettings["SMTPPass"];
+            var fromEmail = ConfigurationManager.AppSettings["FromEmail"];
+            var fromText = ConfigurationManager.AppSettings["FromText"];
+
+            string primaryEmail = ConfigurationManager.AppSettings["SupportEmail"];
+
+            MailMessage m = new MailMessage(
+            new MailAddress(fromEmail, fromText),
+            new MailAddress(primaryEmail));
+
+            m.Subject = "SUPPORT - Xero Integration Complete";
+            m.Body = string.Format("Nightly Xero Integration has completed.  Attached is the Exception files.");
+
+            m.Attachments.Add(new System.Net.Mail.Attachment(logFileAttach));
+
+            m.IsBodyHtml = true;
+            SmtpClient smtp = new SmtpClient(mailServer, mailPort);
             smtp.UseDefaultCredentials = false;
             smtp.Credentials = new System.Net.NetworkCredential(mailAuth, mailPass);
 
