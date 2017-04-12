@@ -102,9 +102,11 @@
     <Compile Include="Common.cs" />
     <Compile Include="DataObjects\CustomerAudit.cs" />
     <Compile Include="DataObjects\ExceptionAudit.cs" />
+    <Compile Include="DataObjects\GeneratedPayment.cs" />
     <Compile Include="DataObjects\InvoiceAudit.cs" />
     <Compile Include="Options.cs" />
     <Compile Include="DataObjects\PaymentAudit.cs" />
+    <Compile Include="PaymentProcessor.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SIMSMapper.cs" />
@@ -112,7 +114,9 @@
     <Compile Include="XeroIntegration.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="log4net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
