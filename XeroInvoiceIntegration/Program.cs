@@ -134,7 +134,8 @@ namespace XeroInvoiceIntegration
                     {
                         _log.Debug("********* Checking SIMS Order History");
                         List<order_status_history> dailyOrderNumbers;
-
+                        //Need to check what the status code for the latest date is.  If it is not completed ('com') then 
+                        // we don't generate an invoice.
                         if (dailyRun)
                         {
                             dailyOrderNumbers =
@@ -167,13 +168,32 @@ namespace XeroInvoiceIntegration
                                 var orderHeaders = dataEntities.orders.Where(o => o.order_id == orderIdSearch).ToList();
                                 foreach (var header in orderHeaders)
                                 {
+                                    string strOrderId = header.order_id.ToString();
+
+                                    var lastOrderStatusHistory = dataEntities.order_status_history.Where(o=>o.order_id == strOrderId).OrderByDescending(p=>p.status_date).FirstOrDefault();
+
+                                    _log.InfoFormat("*** Order # {0} had a latest status of {1}", header.order_number, lastOrderStatusHistory.order_status == null ? "NOT SET": lastOrderStatusHistory.order_status);
+                                    if (lastOrderStatusHistory.order_status == null)
+                                    {
+                                        _log.Info("** NULL status for Order.");
+                                        continue;
+                                    }
+                                    if (!lastOrderStatusHistory.order_status.Equals("com"))
+                                    {
+                                        _log.Info("** Not Building Invoice");
+                                        continue;
+                                    }
+
                                     //Check on the Customer / Xero Contact
                                     if (header.customer_id != null)
                                     {
-                                        int customerId = int.Parse(header.customer_id.ToString());
 
+                                        int customerId = int.Parse(header.customer_id.ToString());
+                                        _log.InfoFormat("** Building Contact for Customer {0}", customerId);
                                         var xeroContact = simsMapper.BuildContact(customerId);
+                                        _log.InfoFormat("** Writing Customer Audit for {0}", xeroContact.Name );
                                         customerAudit = new CustomerAudit();
+
                                         if (!customerHeaderWritten)
                                         {
                                             customerCsv.WriteHeader(customerAudit.GetType());
@@ -226,6 +246,7 @@ namespace XeroInvoiceIntegration
                                         customerAudit.Email = xeroContact.EmailAddress;
                                         customerCsv.WriteRecord(customerAudit);
 
+                                        _log.Info("** Validating Invoice for Customer");
                                         string orderid = header.order_id.ToString();
                                         DateTime completeDate = DateTime.Now;
                                         var statusRecords =

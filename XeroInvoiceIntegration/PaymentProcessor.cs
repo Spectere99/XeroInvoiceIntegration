@@ -61,13 +61,15 @@ namespace XeroInvoiceIntegration
                         _log.Info("*** Invoice is Authorized");
                         try
                         {
+                            _log.InfoFormat("*** Invoice Reference Number: {0}", invoice.Reference);
                             var orderNumber = ParseOrderNumber(invoice.Reference);
                             _log.InfoFormat("*** Checking in SIMS for Payments to Order Number {0}", orderNumber);
                             var simsOrder = _db.orders.SingleOrDefault(p => p.order_number == orderNumber);
                             if (simsOrder != null)
                             {
-                                var simsPayments = _db.order_payments.Where(p => p.order_id == simsOrder.order_id).ToList();
-                                sbPaymentChecks.AppendLine(string.Format("Found {0} Payments in SIMS", simsPayments.Count));
+                                var simsPayments = _db.order_payments.Where(p => p.order_id == simsOrder.order_id)
+                                                                     .Where(p => p.payment_date >= searchStartDate).ToList();
+                                sbPaymentChecks.AppendLine(string.Format("*** Found {0} Payments in SIMS since {1}", simsPayments.Count, searchStartDate));
                                 _log.InfoFormat("*** Found {0} Payments in SIMS", simsPayments.Count);
                                 // Need to matchup the Invoice's PrePayments with any payment records from SIMS, 
                                 // and Match it to the Payment Integration Control table.  
@@ -80,7 +82,7 @@ namespace XeroInvoiceIntegration
                                     simsPayments = ProcessPayments(simsPayments, invoice, orderNumber);
                                 }
                                 SIMSMapper simsMapper = new SIMSMapper();
-                                sbPaymentChecks.AppendLine(string.Format("{0} Payments to send to Xero", simsPayments.Count));
+                                sbPaymentChecks.AppendLine(string.Format("*** {0} Payments to send to Xero", simsPayments.Count));
                                 //Now the only payments left should be the ones that we need to process (ie. send back to main control program).
                                 foreach (order_payments orderPayment in simsPayments)
                                 {
@@ -110,7 +112,7 @@ namespace XeroInvoiceIntegration
                             }
                             else
                             {
-                                _log.InfoFormat("SIMS Order not found for Order Number: {0}", orderNumber);
+                                _log.InfoFormat("*** SIMS Order not found for Order Number: {0}", orderNumber);
                             }
 
 
@@ -121,13 +123,13 @@ namespace XeroInvoiceIntegration
                             var frame = st.GetFrame(0);
                             var line = frame.GetFileLineNumber();
 
-                            _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
+                            _log.ErrorFormat("!!!! An Error occurred when processing Orders: Line: {0} : {1}", line,
                                     Utilities.FlattenException(ex));
                         }    
                     }
                     else
                     {
-                        _log.Info("Invoice is NOT Authorized");
+                        _log.Info("*** Invoice is NOT Authorized");
                     }
 
                 }
@@ -165,9 +167,21 @@ namespace XeroInvoiceIntegration
                         _log.Info(string.Format("*** Found {0} Payments made on {1}", pass1Payments.Count, fullPrePayment.Date));
                         foreach (order_payments p1Payment in pass1Payments)
                         {
-                            if (Decimal.Parse(p1Payment.payment_amount) != fullPrePayment.Total)continue;
-                            
-                            _log.Info(string.Format("*** Payment Match amounts ${0}(Xero) / ${1}(Sims)", fullPrePayment.Total, p1Payment.payment_amount)); 
+                            //Need to check the allocations for PrePayments in order to not double send for prepayments in Xero.
+                            var foundMatchingAllocation = false;
+                            PrepaymentAllocation prePaymentAllocation = null;
+                            foreach (PrepaymentAllocation alloc in fullPrePayment.Allocations)
+                            {
+                                if (Decimal.Parse(p1Payment.payment_amount) != alloc.Amount ||
+                                    invoice.Id != alloc.Invoice.Id) continue;
+                                prePaymentAllocation = alloc;
+                                foundMatchingAllocation = true;
+                                break;
+                            }
+                            //if (Decimal.Parse(p1Payment.payment_amount) != fullPrePayment.Total)continue;
+                            if (!foundMatchingAllocation) continue;
+
+                            _log.Info(string.Format("*** Payment Match amounts ${0}(Xero) / ${1}(Sims)", prePaymentAllocation.Amount, p1Payment.payment_amount)); 
                             _log.Info("*** Payment not in control, but in Xero.  Updating Payment Control table.");
                             simsPayments.RemoveAll(p => p.order_payment_id == p1Payment.order_payment_id);
                             //We have a payment. Update the payment_interface_control so it won't show up next time.
