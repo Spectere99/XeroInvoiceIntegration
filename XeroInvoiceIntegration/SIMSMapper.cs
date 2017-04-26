@@ -26,16 +26,15 @@ namespace XeroInvoiceIntegration
             {
                 var parentCustomers = dataEntities.customers.Where(p => p.customer_id == customer.parent_id);
                 customer = parentCustomers.FirstOrDefault();
-
             }
             customer_address customerAddress = dataEntities.customer_address.FirstOrDefault(p => p.customer_id == customer.customer_id);
-            customer_person person = dataEntities.customer_person.Where(p=>p.email_address!=null).FirstOrDefault(p => p.customer_id == customer.customer_id);
+            customer_person person = dataEntities.customer_person.Where(p => p.customer_id == customer.customer_id).Where(p => p.person_type == "prime").FirstOrDefault(p => p.email_address != null);
 
             Contact xeroContact = new Contact();
             var fixCustomerName = customer.customer_name.Replace("(Parent)", "")
                 .Replace("(parent)", "")
                 .Replace("(P)", "");
-            xeroContact.Name = fixCustomerName;
+            xeroContact.Name = fixCustomerName.Trim();
             if (person != null)
             {
                 xeroContact.FirstName = person.first_name ?? "NotProvided";
@@ -134,7 +133,7 @@ namespace XeroInvoiceIntegration
 
             IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id);
             //TODO:  Add check for a valid details.  If quantity or price is null, then it is an invalid line item and an exception needs to be thrown and recorded.
-            if (theOrder.purchase_order != null)
+            if (theOrder.purchase_order != null && (theOrder.purchase_order != null || theOrder.purchase_order.Trim().Length > 0))
             {
                 LineItem poLine = new LineItem();
                 poLine.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];
@@ -166,7 +165,15 @@ namespace XeroInvoiceIntegration
                         detail.manufacturer, detail.product_code, detail.color_code, detailText);
 
                     xeroInvoiceItem.Description = lineDescription;
-                    xeroInvoiceItem.ItemCode = (itemCodeXRef != null) ? itemCodeXRef.target_item_code : "999";
+                    var xeroItemCode = (itemCodeXRef != null) ? itemCodeXRef.target_item_code : "999";
+                    if (itemCodeXRef.target_item_code == "001")
+                    {
+                        if (detail.C2xl_qty != null) xeroItemCode = "002";
+                        if (detail.C3xl_qty != null) xeroItemCode = "003";
+                        if (detail.C4xl_qty != null) xeroItemCode = "004";
+                        if (detail.C5xl_qty != null) xeroItemCode = "005";
+                    }
+                    xeroInvoiceItem.ItemCode = xeroItemCode;
                     xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "OUTPUT": "NONE";
                 }
                 else

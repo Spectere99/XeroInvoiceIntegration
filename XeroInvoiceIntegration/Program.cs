@@ -136,6 +136,7 @@ namespace XeroInvoiceIntegration
                         List<order_status_history> dailyOrderNumbers;
                         //Need to check what the status code for the latest date is.  If it is not completed ('com') then 
                         // we don't generate an invoice.
+                        
                         if (dailyRun)
                         {
                             dailyOrderNumbers =
@@ -158,7 +159,7 @@ namespace XeroInvoiceIntegration
                         {
                             CustomerAudit customerAudit = new CustomerAudit();
                             InvoiceAudit invoiceAudit = new InvoiceAudit();
-                            PaymentAudit paymentAudit = new PaymentAudit();
+                            
                             try
                             {
                                 var orderIdSearch = int.Parse(stat.order_id);
@@ -187,7 +188,10 @@ namespace XeroInvoiceIntegration
                                     //Check on the Customer / Xero Contact
                                     if (header.customer_id != null)
                                     {
-
+                                        //if (header.order_number == "040820172")
+                                        //{
+                                        //    var x = 0;
+                                        //}
                                         int customerId = int.Parse(header.customer_id.ToString());
                                         _log.InfoFormat("** Building Contact for Customer {0}", customerId);
                                         var xeroContact = simsMapper.BuildContact(customerId);
@@ -309,20 +313,21 @@ namespace XeroInvoiceIntegration
                                                 xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice,
                                                     options.TransmitToXero).Item1;
                                             }
-                                            
 
-                                            //Create new record for Invoice_Control table to say we have created and sent this invoice
-                                            invoice_interface_control invoiceControl = new invoice_interface_control
+                                            if (options.TransmitToXero)
                                             {
-                                                order_id = header.order_id,
-                                                invoiced_date = DateTime.Now,
-                                                order_number = header.order_number,
-                                                xero_invoice_id = xeroInvoice.Id.ToString()
-                                            };
+                                                //Create new record for Invoice_Control table to say we have created and sent this invoice
+                                                invoice_interface_control invoiceControl = new invoice_interface_control
+                                                {
+                                                    order_id = header.order_id,
+                                                    invoiced_date = DateTime.Now,
+                                                    order_number = header.order_number,
+                                                    xero_invoice_id = xeroInvoice.Id.ToString()
+                                                };
 
-                                            dataEntities.invoice_interface_control.Add(invoiceControl);
-                                            dataEntities.SaveChanges();
-
+                                                dataEntities.invoice_interface_control.Add(invoiceControl);
+                                                dataEntities.SaveChanges();
+                                            }
                                             invoiceAudit.CreateDate = xeroInvoice.Date;
                                             invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
                                             invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
@@ -344,7 +349,7 @@ namespace XeroInvoiceIntegration
                                 var line = frame.GetFileLineNumber();
                                 
                                 ExceptionAudit exceptionAudit = LogValidationExceptionData(valEx, customerAudit, invoiceAudit,
-                                    paymentAudit);
+                                    null);
                                 if (!exceptionHeaderWritten)
                                 {
                                     exceptionCsv.WriteHeader(exceptionAudit.GetType());
@@ -366,7 +371,7 @@ namespace XeroInvoiceIntegration
                                 var frame = st.GetFrame(0);
                                 var line = frame.GetFileLineNumber();
                                 ExceptionAudit exceptionAudit = LogExceptionData(ex, customerAudit, invoiceAudit,
-                                    paymentAudit);
+                                    null);
                                 if (!exceptionHeaderWritten)
                                 {
                                     exceptionCsv.WriteHeader(exceptionAudit.GetType());
@@ -383,41 +388,90 @@ namespace XeroInvoiceIntegration
 
                     if (processPayments)
                     {
-                        _log.Info("********* Processing Payments ***************");
-                        PaymentProcessor paymentProcessor = new PaymentProcessor(xeroIntegration.Invoices);
-
-                        int genPaymentCount = paymentProcessor.GeneratePayments(paymentBackDate);
-
-                        _log.InfoFormat("***** Sending {0} Payments to Xero *****", genPaymentCount);
-                        if (genPaymentCount > 0)
+                        PaymentAudit paymentAudit = new PaymentAudit();
+                        try
                         {
-                            // Need to loop through the payments, send them to Xero and write the Audit file out.
-                            foreach (GeneratedPayment genPayment in paymentProcessor.GeneratedXeroPayments)
+                            _log.Info("********* Processing Payments ***************");
+                            PaymentProcessor paymentProcessor = new PaymentProcessor(xeroIntegration.Invoices);
+
+                            int genPaymentCount = paymentProcessor.GeneratePayments(paymentBackDate);
+
+                            _log.InfoFormat("***** Sending {0} Payments to Xero *****", genPaymentCount);
+                            if (genPaymentCount > 0)
                             {
-                                
-                                Tuple<Payment, string> paymentCreateReturn =
-                                                            xeroIntegration.CreatePayment(genPayment.Payment,
-                                                                options.TransmitToXero);
-                                Payment xeroPayment = paymentCreateReturn.Item1;
-
-                                PaymentAudit paymentAudit = genPayment.PaymentAudit;
-
-                                paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
-                                var storedAction = paymentAudit.Action;
-                                if (paymentCreateReturn.Item2 == "CREATED")
+                                // Need to loop through the payments, send them to Xero and write the Audit file out.
+                                foreach (GeneratedPayment genPayment in paymentProcessor.GeneratedXeroPayments)
                                 {
-                                    Common.RecordXeroPaymentControl(paymentAudit.OrderNumber, paymentAudit.PaymentID, paymentAudit.OrderId, paymentAudit.XeroPaymentId );
-                                }
-                                paymentAudit.Action = string.Format("{0}- ACTION: {1}", storedAction, paymentCreateReturn.Item2);
 
-                                if (!paymentHeaderWritten)
-                                {
-                                    paymentCsv.WriteHeader(paymentAudit.GetType());
-                                    paymentHeaderWritten = true;
+                                    Tuple<Payment, string> paymentCreateReturn =
+                                                                xeroIntegration.CreatePayment(genPayment.Payment,
+                                                                    options.TransmitToXero);
+                                    Payment xeroPayment = paymentCreateReturn.Item1;
+
+                                    paymentAudit = genPayment.PaymentAudit;
+
+                                    paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+                                    var storedAction = paymentAudit.Action;
+                                    if (paymentCreateReturn.Item2 == "CREATED")
+                                    {
+                                        if (options.TransmitToXero)
+                                        {
+                                            Common.RecordXeroPaymentControl(paymentAudit.OrderNumber, paymentAudit.PaymentID,
+                                                paymentAudit.OrderId, paymentAudit.XeroPaymentId);
+                                        }
+                                    }
+                                    paymentAudit.Action = string.Format("{0}- ACTION: {1}", storedAction, paymentCreateReturn.Item2);
+
+                                    if (!paymentHeaderWritten)
+                                    {
+                                        paymentCsv.WriteHeader(paymentAudit.GetType());
+                                        paymentHeaderWritten = true;
+                                    }
+                                    paymentCsv.WriteRecord(paymentAudit);
                                 }
-                                paymentCsv.WriteRecord(paymentAudit);
                             }
                         }
+                        catch (ValidationException valEx)
+                        {
+                            var st = new StackTrace(valEx, true);
+                            var frame = st.GetFrame(0);
+                            var line = frame.GetFileLineNumber();
+
+                            ExceptionAudit exceptionAudit = LogValidationExceptionData(valEx,  null, null,
+                                paymentAudit);
+                            if (!exceptionHeaderWritten)
+                            {
+                                exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionHeaderWritten = true;
+                            }
+                            exceptionCsv.WriteRecord(exceptionAudit);
+                            _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
+                                valEx.Message);
+                            _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
+
+                            foreach (ValidationError ve in valEx.ValidationErrors)
+                            {
+                                _log.ErrorFormat("Validation Error: {0}", ve);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            var st = new StackTrace(ex, true);
+                            var frame = st.GetFrame(0);
+                            var line = frame.GetFileLineNumber();
+                            ExceptionAudit exceptionAudit = LogExceptionData(ex, null, null,
+                                paymentAudit);
+                            if (!exceptionHeaderWritten)
+                            {
+                                exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionHeaderWritten = true;
+                            }
+                            exceptionCsv.WriteRecord(exceptionAudit);
+                            _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
+                                ex.Message);
+                            _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
+                        }
+                        
                     }
 
                     #region "OLD PAYMENT CODE - DO NOT USE!!!!

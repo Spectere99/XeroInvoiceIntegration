@@ -213,7 +213,7 @@ namespace XeroInvoiceIntegration
                         _log.InfoFormat("Contact Found: {0}:{1}", newContact.Name, newContact.Id);
                         _log.DebugFormat("--Contact XML--");
                         _log.Debug(Utilities.FormatXML(newContact.ToXml()));
-                        returnContact = newContact;
+                        returnContact = foundContact;
                         //returnContact = transmit ? _private_app_api.Contacts.Update(newContact) : newContact;
                         addedContact = true;
                     }
