@@ -74,7 +74,8 @@ namespace XeroInvoiceIntegration
                 {
                     try
                     {
-                        var contactReturnList = _privateAppApi.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
+                        var contactReturnList =
+                            _privateAppApi.Contacts.Where("IsCustomer=true").Page(contactPage).Find().ToList();
                         //var returnList = _private_app_api.Contacts.Page(contactPage).Find().ToList();
                         _contacts.AddRange(contactReturnList);
                         contactCount = contactReturnList.Count;
@@ -187,14 +188,14 @@ namespace XeroInvoiceIntegration
             return foundInvoice;
 
         }
-        
+
         public Tuple<Contact, string> CreateContact(Contact newContact, bool transmit)
         {
             if (_contacts == null)
             {
                 throw new Exception("Internal Contact List not Initialized.  Create Contact not allowed.");
             }
-                
+
             var foundContact = _contacts.FirstOrDefault(p => p.Name == newContact.Name);
             var actionType = "FOUND";
             int retryCount = 0;
@@ -228,7 +229,7 @@ namespace XeroInvoiceIntegration
                     }
 
                 }
-                catch (ValidationException valEx) 
+                catch (ValidationException valEx)
                 {
                     //Validation exceptions from Xero occurr because the same person is listed for multiple Customers and Xero does not like that.  
                     // If we hit this, then we will remove the person, but leave the email address and still save the Customer so the Invoice can be
@@ -239,7 +240,7 @@ namespace XeroInvoiceIntegration
                         returnContact = newContact;
                         actionType = "SKIPPED";
                     }
-                    
+
                     newContact.ContactPersons = null;
                     newContact.FirstName = null;
                     newContact.LastName = null;
@@ -248,6 +249,13 @@ namespace XeroInvoiceIntegration
                     {
                         _log.ErrorFormat("Validation Error: {0}", ve);
                     }
+                }
+                catch (Exception ex)
+                {
+                    Thread.Sleep(61000);
+                    returnContact = transmit ? _privateAppApi.Contacts.Create(newContact) : newContact;
+                    actionType = "CREATED";
+                    addedContact = true;
                 }
             }
             return new Tuple<Contact, string>(returnContact, actionType);
@@ -262,35 +270,57 @@ namespace XeroInvoiceIntegration
 
             var foundInvoice = FindInvoice(newInvoice.Reference);
             //var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
-            var actionType = "FOUND"; 
+            var actionType = "FOUND";
             Invoice returnInvoice = newInvoice;
             if (foundInvoice != null)
             {
                 //Do we need to update the invoice if it is already created or do we just report it????
                 newInvoice.Id = foundInvoice.Id;
                 _log.InfoFormat("Invoice Exists: {0}:{1}", foundInvoice.Reference, foundInvoice.Id);
-               
+
             }
             else //New Contact
             {
-                _log.InfoFormat("Creating Invoice: {0}:{1}", newInvoice.Reference, newInvoice.Id);
-                _log.DebugFormat("--Invoice XML--");
-                _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
-                returnInvoice = transmit ? _privateAppApi.Invoices.Create(newInvoice) : newInvoice;
-                actionType = "CREATED";
+                try
+                {
+                    _log.InfoFormat("Creating Invoice: {0}:{1}", newInvoice.Reference, newInvoice.Id);
+                    _log.DebugFormat("--Invoice XML--");
+                    _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
+                    returnInvoice = transmit ? _privateAppApi.Invoices.Create(newInvoice) : newInvoice;
+                    actionType = "CREATED";
+                }
+                catch (Exception ex)
+                {
+                    //More than likely, this is hit because of the transmit limit for Xero was reached.  In this case.  Wait for 60 seconds and resend.
+                    Thread.Sleep(61000);
+                    returnInvoice = transmit ? _privateAppApi.Invoices.Create(newInvoice) : newInvoice;
+                    actionType = "CREATED";
+                }
+
+
             }
             return new Tuple<Invoice, string>(returnInvoice, actionType);
         }
 
         public Tuple<Invoice, string> UpdateInvoice(Invoice newInvoice, bool transmit)
         {
-            //var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
             var actionType = "UPDATE";
-            _log.InfoFormat("Adjusting Invoice for Salestax: {0}:{1}", newInvoice.Reference, newInvoice.Id);
-            _log.DebugFormat("--Invoice XML--");
-            _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
-            var returnInvoice = transmit ? _privateAppApi.Invoices.Update(newInvoice) : newInvoice;
-            
+            Invoice returnInvoice = null;
+            //var foundInvoice = _invoices.FirstOrDefault(p => p.Reference == newInvoice.Reference);
+            try
+            {
+                _log.InfoFormat("Adjusting Invoice for Salestax: {0}:{1}", newInvoice.Reference, newInvoice.Id);
+                _log.DebugFormat("--Invoice XML--");
+                _log.Debug(Utilities.FormatXML(newInvoice.ToXml()));
+                returnInvoice = transmit ? _privateAppApi.Invoices.Update(newInvoice) : newInvoice;
+            }
+            catch (Exception)
+            {
+                //More than likely, this is hit because of the transmit limit for Xero was reached.  In this case.  Wait for 60 seconds and resend.
+                Thread.Sleep(61000);
+                returnInvoice = transmit ? _privateAppApi.Invoices.Update(newInvoice) : newInvoice;
+            }
+
             return new Tuple<Invoice, string>(returnInvoice, actionType);
         }
 
@@ -300,13 +330,21 @@ namespace XeroInvoiceIntegration
             {
                 throw new Exception("Internal Invoice List not Initialized.  Delete Invoice not allowed.");
             }
-            Invoices.Remove(delInvoice);
-            delInvoice.Status = InvoiceStatus.Deleted;
-            _log.InfoFormat("Removing Invoice for Salestax: {0}:{1}", delInvoice.Reference, delInvoice.Id);
-            _log.DebugFormat("--Invoice XML--");
-            _log.Debug(Utilities.FormatXML(delInvoice.ToXml()));
-            if (transmit)
+            try
             {
+                Invoices.Remove(delInvoice);
+                delInvoice.Status = InvoiceStatus.Deleted;
+                _log.InfoFormat("Removing Invoice for Salestax: {0}:{1}", delInvoice.Reference, delInvoice.Id);
+                _log.DebugFormat("--Invoice XML--");
+                _log.Debug(Utilities.FormatXML(delInvoice.ToXml()));
+                if (transmit)
+                {
+                    _privateAppApi.Invoices.Update(delInvoice);
+                }
+            }
+            catch (Exception)
+            {
+                Thread.Sleep((61000));
                 _privateAppApi.Invoices.Update(delInvoice);
             }
         }
@@ -329,7 +367,7 @@ namespace XeroInvoiceIntegration
                 throw new Exception("Internal Payments List not Initialized.  Create Payment not allowed.");
             }
             var foundPayment = _payments.FirstOrDefault(p => p.Invoice.Reference == newPayment.Invoice.Reference);
-            var actionType = "FOUND"; 
+            var actionType = "FOUND";
             Payment returnPayment = newPayment;
             if (foundPayment != null)
             {
@@ -339,14 +377,25 @@ namespace XeroInvoiceIntegration
                 _log.DebugFormat("--Payment XML--");
                 _log.Debug(Utilities.FormatXML(newPayment.ToXml()));
             }
-            else //New Contact
+            else //New Payment
             {
                 _log.InfoFormat("Creating Payment: {0}:{1}", newPayment.Reference, newPayment.Id);
                 _log.DebugFormat("--Payment XML--");
                 _log.Debug(Utilities.FormatXML(newPayment.ToXml()));
+                try
+                {
+                    returnPayment = transmit ? _privateAppApi.Payments.Create(newPayment) : newPayment;
+                    actionType = "CREATED";
+
+                }
+                catch (Exception)
+                {
+                    Thread.Sleep(61000);
+                    returnPayment = transmit ? _privateAppApi.Payments.Create(newPayment) : newPayment;
+                    actionType = "CREATED";
+                }
                 
-                returnPayment = transmit? _privateAppApi.Payments.Create(newPayment) : newPayment;
-                actionType = "CREATED";
+
             }
             return new Tuple<Payment, string>(returnPayment, actionType);
         }

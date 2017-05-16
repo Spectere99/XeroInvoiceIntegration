@@ -156,6 +156,7 @@ namespace XeroInvoiceIntegration
                 if (!detail.vendor.Equals("gmtpr"))
                 {
                     var detailText = GetQuantityDetailText(detail);
+
                     var priceListText = detail.pricelist_id != null ? detail.pricelist_id.ToString() : "";
                     var itemCodeXRef = dataEntities.item_code_xref.FirstOrDefault(p => p.source_item_code == priceListText);
                     //Description is the following:

@@ -402,32 +402,75 @@ namespace XeroInvoiceIntegration
                                 // Need to loop through the payments, send them to Xero and write the Audit file out.
                                 foreach (GeneratedPayment genPayment in paymentProcessor.GeneratedXeroPayments)
                                 {
-
-                                    Tuple<Payment, string> paymentCreateReturn =
+                                    try
+                                    {
+                                        Tuple<Payment, string> paymentCreateReturn =
                                                                 xeroIntegration.CreatePayment(genPayment.Payment,
                                                                     options.TransmitToXero);
-                                    Payment xeroPayment = paymentCreateReturn.Item1;
+                                        Payment xeroPayment = paymentCreateReturn.Item1;
 
-                                    paymentAudit = genPayment.PaymentAudit;
+                                        paymentAudit = genPayment.PaymentAudit;
 
-                                    paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
-                                    var storedAction = paymentAudit.Action;
-                                    if (paymentCreateReturn.Item2 == "CREATED")
-                                    {
-                                        if (options.TransmitToXero)
+                                        paymentAudit.XeroPaymentId = xeroPayment.Id.ToString();
+                                        var storedAction = paymentAudit.Action;
+                                        if (paymentCreateReturn.Item2 == "CREATED")
                                         {
-                                            Common.RecordXeroPaymentControl(paymentAudit.OrderNumber, paymentAudit.PaymentID,
-                                                paymentAudit.OrderId, paymentAudit.XeroPaymentId);
+                                            if (options.TransmitToXero)
+                                            {
+                                                Common.RecordXeroPaymentControl(paymentAudit.OrderNumber, paymentAudit.PaymentID,
+                                                    paymentAudit.OrderId, paymentAudit.XeroPaymentId);
+                                            }
+                                        }
+                                        paymentAudit.Action = string.Format("{0}- ACTION: {1}", storedAction, paymentCreateReturn.Item2);
+
+                                        if (!paymentHeaderWritten)
+                                        {
+                                            paymentCsv.WriteHeader(paymentAudit.GetType());
+                                            paymentHeaderWritten = true;
+                                        }
+                                        paymentCsv.WriteRecord(paymentAudit);
+                                    }
+                                    catch (ValidationException valEx)
+                                    {
+                                        var st = new StackTrace(valEx, true);
+                                        var frame = st.GetFrame(0);
+                                        var line = frame.GetFileLineNumber();
+
+                                        ExceptionAudit exceptionAudit = LogValidationExceptionData(valEx, null, null,
+                                            paymentAudit);
+                                        if (!exceptionHeaderWritten)
+                                        {
+                                            exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                            exceptionHeaderWritten = true;
+                                        }
+                                        exceptionCsv.WriteRecord(exceptionAudit);
+                                        _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
+                                            valEx.Message);
+                                        _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
+
+                                        foreach (ValidationError ve in valEx.ValidationErrors)
+                                        {
+                                            _log.ErrorFormat("Validation Error: {0}", ve);
                                         }
                                     }
-                                    paymentAudit.Action = string.Format("{0}- ACTION: {1}", storedAction, paymentCreateReturn.Item2);
-
-                                    if (!paymentHeaderWritten)
+                                    catch (Exception ex)
                                     {
-                                        paymentCsv.WriteHeader(paymentAudit.GetType());
-                                        paymentHeaderWritten = true;
-                                    }
-                                    paymentCsv.WriteRecord(paymentAudit);
+                                        var st = new StackTrace(ex, true);
+                                        var frame = st.GetFrame(0);
+                                        var line = frame.GetFileLineNumber();
+                                        ExceptionAudit exceptionAudit = LogExceptionData(ex, null, null,
+                                            paymentAudit);
+                                        if (!exceptionHeaderWritten)
+                                        {
+                                            exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                            exceptionHeaderWritten = true;
+                                        }
+                                        exceptionCsv.WriteRecord(exceptionAudit);
+                                        _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
+                                            ex.Message);
+                                        _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
+                                    }   
+                                    
                                 }
                             }
                         }
