@@ -167,179 +167,216 @@ namespace XeroInvoiceIntegration
                                 _log.Info(string.Format("##ORDER #: {0} - Date: {1}", stat.order_id, stat.status_date));
 
                                 var orderHeaders = dataEntities.orders.Where(o => o.order_id == orderIdSearch).ToList();
-                                foreach (var header in orderHeaders)
+                                if (orderHeaders != null)
                                 {
-                                    string strOrderId = header.order_id.ToString();
-
-                                    var lastOrderStatusHistory = dataEntities.order_status_history.Where(o=>o.order_id == strOrderId).OrderByDescending(p=>p.status_date).FirstOrDefault();
-
-                                    _log.InfoFormat("*** Order # {0} had a latest status of {1}", header.order_number, lastOrderStatusHistory.order_status == null ? "NOT SET": lastOrderStatusHistory.order_status);
-                                    if (lastOrderStatusHistory.order_status == null)
+                                    foreach (var header in orderHeaders)
                                     {
-                                        _log.Info("** NULL status for Order.");
-                                        continue;
-                                    }
-                                    if (!lastOrderStatusHistory.order_status.Equals("com"))
-                                    {
-                                        _log.Info("** Not Building Invoice");
-                                        continue;
-                                    }
-
-                                    //Check on the Customer / Xero Contact
-                                    if (header.customer_id != null)
-                                    {
-                                        //if (header.order_number == "040820172")
-                                        //{
-                                        //    var x = 0;
-                                        //}
-                                        int customerId = int.Parse(header.customer_id.ToString());
-                                        _log.InfoFormat("** Building Contact for Customer {0}", customerId);
-                                        var xeroContact = simsMapper.BuildContact(customerId);
-                                        _log.InfoFormat("** Writing Customer Audit for {0}", xeroContact.Name );
-                                        customerAudit = new CustomerAudit();
-
-                                        if (!customerHeaderWritten)
+                                        string strOrderId = header.order_id.ToString();
+                                        if (header.order_id == 1297480)
                                         {
-                                            customerCsv.WriteHeader(customerAudit.GetType());
-                                            customerHeaderWritten = true;
+                                            var x = 0;
+                                        }
+                                        var lastOrderStatusHistory =
+                                            dataEntities.order_status_history.Where(o => o.order_id == strOrderId)
+                                                .OrderByDescending(p => p.order_status_history_id)
+                                                .FirstOrDefault();
+
+                                        _log.InfoFormat("*** Order # {0} had a latest status of {1}",
+                                            header.order_number,
+                                            lastOrderStatusHistory.order_status == null
+                                                ? "NOT SET"
+                                                : lastOrderStatusHistory.order_status);
+                                        if (lastOrderStatusHistory.order_status == null)
+                                        {
+                                            _log.Info("** NULL status for Order.");
+                                            continue;
+                                        }
+                                        if (!lastOrderStatusHistory.order_status.Equals("com"))
+                                        {
+                                            _log.Info("** Not Building Invoice");
+                                            continue;
                                         }
 
-                                        if (options.TransmitToXero)
+                                        //Check on the Customer / Xero Contact
+                                        if (header.customer_id != null)
                                         {
-                                            WaitCheck(2);
-                                        }
+                                            //if (header.order_number == "040820172")
+                                            //{
+                                            //    var x = 0;
+                                            //}
+                                            int customerId = int.Parse(header.customer_id.ToString());
+                                            _log.InfoFormat("** Building Contact for Customer {0}", customerId);
+                                            var xeroContact = simsMapper.BuildContact(customerId);
+                                            _log.InfoFormat("** Writing Customer Audit for {0}", xeroContact.Name);
+                                            customerAudit = new CustomerAudit();
 
-                                        var contactCreateReturn = xeroIntegration.CreateContact(xeroContact,
-                                            options.TransmitToXero);
-                                        xeroContact = contactCreateReturn.Item1;
-                                        customerAudit.Action = contactCreateReturn.Item2;
-
-                                        customerAudit.CustomerID = customerId;
-                                        customerAudit.CustomerName = xeroContact.Name;
-                                        customerAudit.Address = xeroContact.Addresses != null
-                                            ? xeroContact.Addresses.FirstOrDefault().AddressLine1
-                                            : string.Empty;
-                                        customerAudit.City = xeroContact.Addresses != null
-                                            ? xeroContact.Addresses.FirstOrDefault().City
-                                            : string.Empty;
-                                        customerAudit.State = xeroContact.Addresses != null
-                                            ? xeroContact.Addresses.FirstOrDefault().Region
-                                            : string.Empty;
-                                        customerAudit.Zip = xeroContact.Addresses != null
-                                            ? xeroContact.Addresses.FirstOrDefault().PostalCode
-                                            : string.Empty;
-                                        customerAudit.ContactEmail = xeroContact.EmailAddress ?? string.Empty;
-                                        if (xeroContact.ContactPersons != null)
-                                        {
-                                            if (xeroContact.ContactPersons.Count != 0)
+                                            if (!customerHeaderWritten)
                                             {
-                                                customerAudit.ContactName = string.Format("{0} {1}",
-                                                    xeroContact.ContactPersons.FirstOrDefault().FirstName,
-                                                    xeroContact.ContactPersons.FirstOrDefault().LastName);
-                                            }
-                                        }
-                                        if (xeroContact.Phones != null)
-                                        {
-                                            if (xeroContact.Phones != null || xeroContact.Phones.Count != 0)
-                                            {
-                                                customerAudit.ContactPhone = string.Format("({0}){1}",
-                                                    xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
-                                                    xeroContact.Phones.FirstOrDefault().PhoneNumber);
-                                            }
-                                        }
-                                        customerAudit.Email = xeroContact.EmailAddress;
-                                        customerCsv.WriteRecord(customerAudit);
-
-                                        _log.Info("** Validating Invoice for Customer");
-                                        string orderid = header.order_id.ToString();
-                                        DateTime completeDate = DateTime.Now;
-                                        var statusRecords =
-                                            dataEntities.order_status_history.Where(o => o.order_id == orderid).ToList();
-                                        if (statusRecords != null)
-                                        {
-                                            order_status_history statusHistory =
-                                                statusRecords.FirstOrDefault(d => d.order_status.Equals("com"));
-                                            completeDate = DateTime.Parse(statusHistory.status_date.ToString());
-                                        }
-
-                                        user assignedTo =
-                                            dataEntities.users.FirstOrDefault(o => o.user_id == header.assigned_user_id);
-
-                                        string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
-                                                                 assignedTo.last_name.Substring(0, 1).ToUpper() + " " +
-                                                                 header.order_number;
-
-                                        var existingInvoice =
-                                            dataEntities.invoice_interface_control.Any(
-                                                p => p.order_id == header.order_id);
-                                        //Build Invoice
-                                        if (!existingInvoice)
-                                        {
-                                            _log.InfoFormat("*** Contact Payment Terms Details: {0} / {1}"
-                                                , (xeroContact.PaymentTerms != null)?xeroContact.PaymentTerms.Sales.Day: 0
-                                                , (xeroContact.PaymentTerms != null)?xeroContact.PaymentTerms.Sales.TermType.ToString(): "");
-                                            var xeroInvoice = simsMapper.BuildInvoice(header, completeDate,
-                                                referenceNumber,
-                                                xeroContact, invoiceStatus);
-                                            invoiceAudit = new InvoiceAudit();
-                                            if (!invoiceHeaderWritten)
-                                            {
-                                                invoiceCsv.WriteHeader(invoiceAudit.GetType());
-                                                invoiceHeaderWritten = true;
-                                            }
-
-                                            // Create the Invoice
-                                            if (options.TransmitToXero)
-                                            {
-                                                WaitCheck(1);
-                                            }
-                                            var simsInvoiceTotal = xeroInvoice.AmountDue;
-
-                                            Tuple<Invoice, string> invoiceCreateReturn =
-                                                xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
-                                            xeroInvoice = invoiceCreateReturn.Item1;
-
-                                            invoiceAudit.Action = invoiceCreateReturn.Item2;
-                                            decimal? invoiceDiff = xeroInvoice.AmountDue - simsInvoiceTotal;
-                                            if (invoiceDiff != (decimal?) 0.0)
-                                            {
-                                                xeroIntegration.DeleteInvoice(xeroInvoice, options.TransmitToXero);
-                                                xeroInvoice.LineItems.Add(
-                                                    simsMapper.BuildSalesTaxAdjustmentLineItem(invoiceDiff));
-                                                xeroInvoice.Status = (invoiceStatus.ToUpper() == "SUBMITTED")
-                                                    ? InvoiceStatus.Submitted
-                                                    : InvoiceStatus.Draft;
-                                                xeroInvoice.Id = Guid.Empty;
-                                                xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice,
-                                                    options.TransmitToXero).Item1;
+                                                customerCsv.WriteHeader(customerAudit.GetType());
+                                                customerHeaderWritten = true;
                                             }
 
                                             if (options.TransmitToXero)
                                             {
-                                                //Create new record for Invoice_Control table to say we have created and sent this invoice
-                                                invoice_interface_control invoiceControl = new invoice_interface_control
+                                                WaitCheck(2);
+                                            }
+
+                                            var contactCreateReturn = xeroIntegration.CreateContact(xeroContact,
+                                                options.TransmitToXero);
+                                            xeroContact = contactCreateReturn.Item1;
+                                            customerAudit.Action = contactCreateReturn.Item2;
+
+                                            customerAudit.CustomerID = customerId;
+                                            customerAudit.CustomerName = xeroContact.Name;
+                                            customerAudit.Address = xeroContact.Addresses != null
+                                                ? xeroContact.Addresses.FirstOrDefault().AddressLine1
+                                                : string.Empty;
+                                            customerAudit.City = xeroContact.Addresses != null
+                                                ? xeroContact.Addresses.FirstOrDefault().City
+                                                : string.Empty;
+                                            customerAudit.State = xeroContact.Addresses != null
+                                                ? xeroContact.Addresses.FirstOrDefault().Region
+                                                : string.Empty;
+                                            customerAudit.Zip = xeroContact.Addresses != null
+                                                ? xeroContact.Addresses.FirstOrDefault().PostalCode
+                                                : string.Empty;
+                                            customerAudit.ContactEmail = xeroContact.EmailAddress ?? string.Empty;
+                                            if (xeroContact.ContactPersons != null)
+                                            {
+                                                if (xeroContact.ContactPersons.Count != 0)
                                                 {
-                                                    order_id = header.order_id,
-                                                    invoiced_date = DateTime.Now,
-                                                    order_number = header.order_number,
-                                                    xero_invoice_id = xeroInvoice.Id.ToString()
-                                                };
-
-                                                dataEntities.invoice_interface_control.Add(invoiceControl);
-                                                dataEntities.SaveChanges();
+                                                    customerAudit.ContactName = string.Format("{0} {1}",
+                                                        xeroContact.ContactPersons.FirstOrDefault().FirstName,
+                                                        xeroContact.ContactPersons.FirstOrDefault().LastName);
+                                                }
                                             }
-                                            invoiceAudit.CreateDate = xeroInvoice.Date;
-                                            invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
-                                            invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
-                                            invoiceAudit.LineItemCount = xeroInvoice.LineItems.Count;
-                                            invoiceAudit.OrderId = header.order_id;
-                                            invoiceAudit.OrderNumber = header.order_number;
-                                            invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
-                                            invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
+                                            if (xeroContact.Phones != null)
+                                            {
+                                                if (xeroContact.Phones != null || xeroContact.Phones.Count != 0)
+                                                {
+                                                    customerAudit.ContactPhone = string.Format("({0}){1}",
+                                                        xeroContact.Phones.FirstOrDefault().PhoneAreaCode,
+                                                        xeroContact.Phones.FirstOrDefault().PhoneNumber);
+                                                }
+                                            }
+                                            customerAudit.Email = xeroContact.EmailAddress;
+                                            customerCsv.WriteRecord(customerAudit);
 
-                                            invoiceCsv.WriteRecord(invoiceAudit);
+                                            _log.Info("** Validating Invoice for Customer");
+                                            string orderid = header.order_id.ToString();
+                                            DateTime completeDate = DateTime.Now;
+                                            var statusRecords =
+                                                dataEntities.order_status_history.Where(o => o.order_id == orderid)
+                                                    .ToList();
+                                            if (statusRecords != null)
+                                            {
+                                                order_status_history statusHistory =
+                                                    statusRecords.FirstOrDefault(d => d.order_status.Equals("com"));
+                                                completeDate = DateTime.Parse(statusHistory.status_date.ToString());
+                                            }
+
+                                            user assignedTo =
+                                                dataEntities.users.FirstOrDefault(
+                                                    o => o.user_id == header.assigned_user_id);
+
+                                            if (assignedTo == null)
+                                            {
+                                                throw new Exception(string.Format("AssignedTo is not populated for Assigned User: {0}", header.assigned_user_id));
+                                            }
+
+                                            string referenceNumber = assignedTo.first_name.Substring(0, 1).ToUpper() +
+                                                                     assignedTo.last_name.Substring(0, 1).ToUpper() +
+                                                                     " " +
+                                                                     header.order_number;
+
+                                            var existingInvoice =
+                                                dataEntities.invoice_interface_control.Any(
+                                                    p => p.order_id == header.order_id);
+                                            //Build Invoice
+                                            if (!existingInvoice)
+                                            {
+
+                                                _log.InfoFormat("*** Contact Payment Terms Details: {0} / {1}"
+                                                    ,
+                                                    (xeroContact.PaymentTerms != null)
+                                                        ? xeroContact.PaymentTerms.Sales.Day
+                                                        : 0
+                                                    ,
+                                                    (xeroContact.PaymentTerms != null)
+                                                        ? xeroContact.PaymentTerms.Sales.TermType.ToString()
+                                                        : "");
+                                                _log.InfoFormat("Building Invoice...");
+                                                var xeroInvoice = simsMapper.BuildInvoice(header, completeDate,
+                                                    referenceNumber,
+                                                    xeroContact, invoiceStatus);
+                                                invoiceAudit = new InvoiceAudit();
+                                                _log.InfoFormat("Invoice Built for Ref: {0}", referenceNumber);
+                                                if (!invoiceHeaderWritten)
+                                                {
+                                                    invoiceCsv.WriteHeader(invoiceAudit.GetType());
+                                                    invoiceHeaderWritten = true;
+                                                }
+
+                                                // Create the Invoice
+                                                if (options.TransmitToXero)
+                                                {
+                                                    WaitCheck(1);
+                                                }
+                                                var simsInvoiceTotal = xeroInvoice.AmountDue;
+
+                                                _log.InfoFormat("Transmitting Invoice");
+                                                Tuple<Invoice, string> invoiceCreateReturn =
+                                                    xeroIntegration.CreateInvoice(xeroInvoice, options.TransmitToXero);
+                                                xeroInvoice = invoiceCreateReturn.Item1;
+
+                                                invoiceAudit.Action = invoiceCreateReturn.Item2;
+                                                _log.InfoFormat("Invoice Action Returned: {0}", invoiceAudit.Action);
+                                                decimal? invoiceDiff = xeroInvoice.AmountDue - simsInvoiceTotal;
+                                                if (invoiceDiff != (decimal?) 0.0)
+                                                {
+                                                    xeroIntegration.DeleteInvoice(xeroInvoice, options.TransmitToXero);
+                                                    xeroInvoice.LineItems.Add(
+                                                        simsMapper.BuildSalesTaxAdjustmentLineItem(invoiceDiff));
+                                                    xeroInvoice.Status = (invoiceStatus.ToUpper() == "SUBMITTED")
+                                                        ? InvoiceStatus.Submitted
+                                                        : InvoiceStatus.Draft;
+                                                    xeroInvoice.Id = Guid.Empty;
+                                                    xeroInvoice = xeroIntegration.CreateInvoice(xeroInvoice,
+                                                        options.TransmitToXero).Item1;
+                                                }
+
+                                                if (options.TransmitToXero)
+                                                {
+                                                    //Create new record for Invoice_Control table to say we have created and sent this invoice
+                                                    _log.InfoFormat("Updating Invoice Control Record");
+                                                    invoice_interface_control invoiceControl = new invoice_interface_control
+                                                    {
+                                                        order_id = header.order_id,
+                                                        invoiced_date = DateTime.Now,
+                                                        order_number = header.order_number,
+                                                        xero_invoice_id = xeroInvoice.Id.ToString()
+                                                    };
+
+                                                    dataEntities.invoice_interface_control.Add(invoiceControl);
+                                                    dataEntities.SaveChanges();
+                                                }
+                                                invoiceAudit.CreateDate = xeroInvoice.Date;
+                                                invoiceAudit.InvoiceAmt = xeroInvoice.AmountDue;
+                                                invoiceAudit.InvoiceDueDate = xeroInvoice.DueDate;
+                                                invoiceAudit.LineItemCount = xeroInvoice.LineItems.Count;
+                                                invoiceAudit.OrderId = header.order_id;
+                                                invoiceAudit.OrderNumber = header.order_number;
+                                                invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
+                                                invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
+                                                _log.InfoFormat("Writing Audit to CSV");
+                                                invoiceCsv.WriteRecord(invoiceAudit);
+                                            }
                                         }
                                     }
+                                }
+                                else
+                                {
+                                    _log.Warn(string.Format("Order Header did not contain any records for orderID: {0} ", orderIdSearch));
                                 }
                             }
                             catch (ValidationException valEx)

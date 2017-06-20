@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
@@ -133,7 +134,9 @@ namespace XeroInvoiceIntegration
 
             IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id);
             //TODO:  Add check for a valid details.  If quantity or price is null, then it is an invalid line item and an exception needs to be thrown and recorded.
-            if (theOrder.purchase_order != null && (theOrder.purchase_order != null || theOrder.purchase_order.Trim().Length > 0))
+            string purchaseOrder = theOrder.purchase_order ?? string.Empty;
+            //if (theOrder.purchase_order != null && (theOrder.purchase_order != null || theOrder.purchase_order.Trim().Length > 0))
+            if (purchaseOrder.Trim().Length > 0)
             {
                 LineItem poLine = new LineItem();
                 poLine.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];
@@ -215,9 +218,19 @@ namespace XeroInvoiceIntegration
                     xeroInvoiceItem.AccountCode = ConfigurationManager.AppSettings["SalesAccountNumber"];
                 }
                 xeroInvoiceItem.TaxType = "NONE";
+                decimal feeQty = feeItem.fee_quantity != null ? decimal.Parse(feeItem.fee_quantity.ToString()) : 0;
+                decimal feePriceEach = feeItem.fee_price_each != null ? decimal.Parse(feeItem.fee_price_each) : 0;
+                if (feeQty == 0)
+                {
+                    throw new Exception("Fee Quantity to provided.");
+                }
+                if (feePriceEach == 0)
+                {
+                    throw new Exception("Fee Price Each not provided");
+                }
+                xeroInvoiceItem.LineAmount = feeItem.fee_price_ext != null? decimal.Parse(feeItem.fee_price_ext) : feePriceEach * feeItem.fee_quantity;
                 xeroInvoiceItem.Quantity = feeItem.fee_quantity;
-                xeroInvoiceItem.LineAmount = decimal.Parse(feeItem.fee_price_ext);
-                xeroInvoiceItem.UnitAmount = decimal.Parse(feeItem.fee_price_each);
+                xeroInvoiceItem.UnitAmount = feePriceEach;
 
                 lineItems.Add(xeroInvoiceItem);
             }
