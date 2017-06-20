@@ -200,7 +200,7 @@ namespace XeroInvoiceIntegration
                                         //Check on the Customer / Xero Contact
                                         if (header.customer_id != null)
                                         {
-                                            //if (header.order_number == "040820172")
+                                            //if (header.order_number == "061220173")
                                             //{
                                             //    var x = 0;
                                             //}
@@ -296,15 +296,23 @@ namespace XeroInvoiceIntegration
                                             if (!existingInvoice)
                                             {
 
-                                                _log.InfoFormat("*** Contact Payment Terms Details: {0} / {1}"
-                                                    ,
-                                                    (xeroContact.PaymentTerms != null)
-                                                        ? xeroContact.PaymentTerms.Sales.Day
-                                                        : 0
-                                                    ,
-                                                    (xeroContact.PaymentTerms != null)
-                                                        ? xeroContact.PaymentTerms.Sales.TermType.ToString()
-                                                        : "");
+                                                if (xeroContact.PaymentTerms != null && xeroContact.PaymentTerms.Sales != null)
+                                                {
+                                                    _log.InfoFormat("*** Contact Payment Terms Details: {0} / {1}"
+                                                        ,
+                                                        (xeroContact.PaymentTerms != null)
+                                                            ? xeroContact.PaymentTerms.Sales.Day
+                                                            : 0
+                                                        ,
+                                                        (xeroContact.PaymentTerms != null)
+                                                            ? xeroContact.PaymentTerms.Sales.TermType.ToString()
+                                                            : "");
+                                                }
+                                                else
+                                                {
+                                                    _log.Warn("Xero Customer Record did not have Payment Terms for Sales!");
+                                                    xeroContact.PaymentTerms = null;
+                                                }
                                                 _log.InfoFormat("Building Invoice...");
                                                 var xeroInvoice = simsMapper.BuildInvoice(header, completeDate,
                                                     referenceNumber,
