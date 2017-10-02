@@ -1,0 +1,903 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+  <!-- EF Runtime content -->
+  <edmx:Runtime>
+    <!-- SSDL content -->
+    <edmx:StorageModels>
+    <Schema Namespace="SIMSModel.Store" Provider="MySql.Data.MySqlClient" ProviderManifestToken="5.7" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+        <EntityType Name="customer">
+          <Key>
+            <PropertyRef Name="customer_id" />
+          </Key>
+          <Property Name="customer_id" Type="int" Nullable="false" />
+          <Property Name="customer_name" Type="varchar" MaxLength="50" />
+          <Property Name="setup_date" Type="datetime" Precision="0" />
+          <Property Name="setup_by" Type="int" />
+          <Property Name="status_code" Type="varchar" MaxLength="50" />
+          <Property Name="ship_to_bill_ind" Type="varchar" MaxLength="1" />
+          <Property Name="website_url" Type="varchar" MaxLength="100" />
+          <Property Name="account_number" Type="varchar" MaxLength="50" />
+          <Property Name="override_validation_ind" Type="varchar" MaxLength="1" />
+          <Property Name="parent_id" Type="uint" />
+          <Property Name="parent_ind" Type="char" MaxLength="1" />
+        </EntityType>
+        <EntityType Name="customer_address">
+          <Key>
+            <PropertyRef Name="customer_address_id" />
+          </Key>
+          <Property Name="customer_address_id" Type="int" Nullable="false" />
+          <Property Name="customer_id" Type="int" />
+          <Property Name="type_code" Type="varchar" MaxLength="10" />
+          <Property Name="address_1" Type="varchar" MaxLength="50" />
+          <Property Name="address_2" Type="varchar" MaxLength="50" />
+          <Property Name="city" Type="varchar" MaxLength="50" />
+          <Property Name="state" Type="varchar" MaxLength="2" />
+          <Property Name="zip" Type="varchar" MaxLength="10" />
+        </EntityType>
+        <EntityType Name="customer_person">
+          <Key>
+            <PropertyRef Name="customer_person_id" />
+          </Key>
+          <Property Name="customer_person_id" Type="int" Nullable="false" />
+          <Property Name="customer_id" Type="int" />
+          <Property Name="setup_date" Type="datetime" Precision="0" />
+          <Property Name="person_type" Type="varchar" MaxLength="10" />
+          <Property Name="first_name" Type="varchar" MaxLength="50" />
+          <Property Name="last_name" Type="varchar" MaxLength="50" />
+          <Property Name="email_address" Type="varchar" MaxLength="100" />
+          <Property Name="address_1" Type="varchar" MaxLength="50" />
+          <Property Name="address_2" Type="varchar" MaxLength="50" />
+          <Property Name="city" Type="varchar" MaxLength="50" />
+          <Property Name="state" Type="varchar" MaxLength="2" />
+          <Property Name="zip" Type="varchar" MaxLength="10" />
+          <Property Name="country" Type="varchar" MaxLength="50" />
+          <Property Name="phone_1" Type="varchar" MaxLength="10" />
+          <Property Name="phone_1_type" Type="varchar" MaxLength="10" />
+          <Property Name="phone_2" Type="varchar" MaxLength="10" />
+          <Property Name="phone_2_type" Type="varchar" MaxLength="10" />
+          <Property Name="ccnum" Type="varchar" MaxLength="50" />
+          <Property Name="ccexp_date" Type="datetime" Precision="0" />
+          <Property Name="ccverfcode" Type="varchar" MaxLength="50" />
+          <Property Name="phone_1_ext" Type="varchar" MaxLength="10" />
+          <Property Name="phone_2_ext" Type="varchar" MaxLength="10" />
+        </EntityType>
+        <EntityType Name="invoice_interface_control">
+          <Key>
+            <PropertyRef Name="invoice_control_id" />
+          </Key>
+          <Property Name="invoice_control_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="xero_invoice_id" Type="varchar" MaxLength="100" Nullable="false" />
+          <Property Name="order_id" Type="int" Nullable="false" />
+          <Property Name="order_number" Type="varchar" MaxLength="50" Nullable="false" />
+          <Property Name="invoiced_date" Type="datetime" Precision="0" Nullable="false" />
+        </EntityType>
+        <EntityType Name="item_code_xref">
+          <Key>
+            <PropertyRef Name="ReferenceId" />
+          </Key>
+          <Property Name="ReferenceId" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="source_item_code" Type="varchar" MaxLength="25" />
+          <Property Name="target_item_code" Type="varchar" MaxLength="25" />
+        </EntityType>
+        <EntityType Name="order_detail">
+          <Key>
+            <PropertyRef Name="order_detail_id" />
+          </Key>
+          <Property Name="order_detail_id" Type="int" Nullable="false" />
+          <Property Name="order_id" Type="int" />
+          <Property Name="item_type" Type="varchar" MaxLength="10" />
+          <Property Name="item_line_number" Type="int" />
+          <Property Name="item_quantity" Type="int" />
+          <Property Name="pricelist_id" Type="int" />
+          <Property Name="style_code" Type="varchar" MaxLength="10" />
+          <Property Name="color_code" Type="varchar" MaxLength="50" />
+          <Property Name="size_code" Type="varchar" MaxLength="10" />
+          <Property Name="vendor" Type="varchar" MaxLength="50" />
+          <Property Name="manufacturer" Type="varchar" MaxLength="50" />
+          <Property Name="product_code" Type="varchar" MaxLength="50" />
+          <Property Name="item_price_each" Type="varchar" MaxLength="50" />
+          <Property Name="item_price_ext" Type="varchar" MaxLength="50" />
+          <Property Name="taxable_ind" Type="varchar" MaxLength="1" />
+          <Property Name="shipping_po" Type="varchar" MaxLength="50" />
+          <Property Name="notes" Type="varchar" MaxLength="150" />
+          <Property Name="checked_in_ind" Type="varchar" MaxLength="1" />
+          <Property Name="checked_out_ind" Type="varchar" MaxLength="1" />
+          <Property Name="xsmall_qty" Type="uint" />
+          <Property Name="small_qty" Type="uint" />
+          <Property Name="med_qty" Type="uint" />
+          <Property Name="large_qty" Type="uint" />
+          <Property Name="xl_qty" Type="uint" />
+          <Property Name="2xl_qty" Type="uint" />
+          <Property Name="3xl_qty" Type="uint" />
+          <Property Name="4xl_qty" Type="uint" />
+          <Property Name="5xl_qty" Type="uint" />
+          <Property Name="other1_type" Type="varchar" MaxLength="10" />
+          <Property Name="other1_qty" Type="uint" />
+          <Property Name="other2_type" Type="varchar" MaxLength="10" />
+          <Property Name="other2_qty" Type="uint" />
+          <Property Name="other3_type" Type="varchar" MaxLength="10" />
+          <Property Name="other3_qty" Type="uint" />
+          <Property Name="order_number" Type="varchar" MaxLength="50" />
+          <Property Name="customer_name" Type="varchar" MaxLength="50" />
+          <Property Name="garment_order_date" Type="datetime" Precision="0" />
+          <Property Name="garment_recvd_date" Type="datetime" Precision="0" />
+        </EntityType>
+        <EntityType Name="order_fees">
+          <Key>
+            <PropertyRef Name="order_fee_id" />
+          </Key>
+          <Property Name="order_fee_id" Type="int" Nullable="false" />
+          <Property Name="order_id" Type="int" />
+          <Property Name="fee_line_number" Type="int" />
+          <Property Name="fee_quantity" Type="int" />
+          <Property Name="pricelist_id" Type="int" />
+          <Property Name="fee_price_each" Type="varchar" MaxLength="50" />
+          <Property Name="fee_price_ext" Type="varchar" MaxLength="50" />
+          <Property Name="taxable_ind" Type="varchar" MaxLength="1" />
+          <Property Name="notes" Type="varchar" MaxLength="150" />
+        </EntityType>
+        <EntityType Name="order_payments">
+          <Key>
+            <PropertyRef Name="order_payment_id" />
+          </Key>
+          <Property Name="order_payment_id" Type="int" Nullable="false" />
+          <Property Name="order_id" Type="int" />
+          <Property Name="payment_date" Type="datetime" Precision="0" />
+          <Property Name="payment_type_code" Type="varchar" MaxLength="10" />
+          <Property Name="check_number" Type="varchar" MaxLength="50" />
+          <Property Name="payment_amount" Type="varchar" MaxLength="50" />
+          <Property Name="entered_user_id" Type="int" />
+        </EntityType>
+        <EntityType Name="order_status_history">
+          <Key>
+            <PropertyRef Name="order_status_history_id" />
+          </Key>
+          <Property Name="order_status_history_id" Type="int" Nullable="false" />
+          <Property Name="order_id" Type="varchar" MaxLength="50" />
+          <Property Name="order_status" Type="varchar" MaxLength="10" />
+          <Property Name="status_date" Type="datetime" Precision="0" />
+          <Property Name="set_by_user_id" Type="int" />
+        </EntityType>
+        <EntityType Name="orders">
+          <Key>
+            <PropertyRef Name="order_id" />
+          </Key>
+          <Property Name="order_id" Type="int" Nullable="false" />
+          <Property Name="customer_id" Type="int" />
+          <Property Name="order_number" Type="varchar" MaxLength="50" />
+          <Property Name="order_type" Type="varchar" MaxLength="10" />
+          <Property Name="purchase_order" Type="varchar" MaxLength="50" />
+          <Property Name="order_date" Type="datetime" Precision="0" />
+          <Property Name="order_due_date" Type="datetime" Precision="0" />
+          <Property Name="order_status" Type="varchar" MaxLength="10" />
+          <Property Name="taken_user_id" Type="int" />
+          <Property Name="assigned_user_id" Type="int" />
+          <Property Name="est_begin_date" Type="datetime" Precision="0" />
+          <Property Name="act_begin_date" Type="datetime" Precision="0" />
+          <Property Name="est_complete_date" Type="datetime" Precision="0" />
+          <Property Name="act_complete_date" Type="datetime" Precision="0" />
+          <Property Name="shipped_date" Type="datetime" Precision="0" />
+          <Property Name="subtotal" Type="varchar" MaxLength="50" />
+          <Property Name="tax_rate" Type="varchar" MaxLength="50" />
+          <Property Name="tax_amount" Type="varchar" MaxLength="50" />
+          <Property Name="shipping" Type="varchar" MaxLength="50" />
+          <Property Name="total" Type="varchar" MaxLength="50" />
+          <Property Name="payments" Type="varchar" MaxLength="50" />
+          <Property Name="balance_due" Type="varchar" MaxLength="50" />
+          <Property Name="IMAGE_FILE" Type="varchar" MaxLength="50" />
+          <Property Name="BILL_ADDRESS_1" Type="varchar" MaxLength="50" />
+          <Property Name="BILL_ADDRESS_2" Type="varchar" MaxLength="50" />
+          <Property Name="BILL_CITY" Type="varchar" MaxLength="50" />
+          <Property Name="BILL_STATE" Type="varchar" MaxLength="2" />
+          <Property Name="BILL_ZIP" Type="varchar" MaxLength="10" />
+          <Property Name="SHIP_ADDRESS_1" Type="varchar" MaxLength="50" />
+          <Property Name="SHIP_ADDRESS_2" Type="varchar" MaxLength="50" />
+          <Property Name="SHIP_CITY" Type="varchar" MaxLength="50" />
+          <Property Name="SHIP_STATE" Type="varchar" MaxLength="2" />
+          <Property Name="SHIP_ZIP" Type="varchar" MaxLength="10" />
+          <Property Name="PRIORITY" Type="int" />
+          <Property Name="PERCENT_COMPLETE" Type="varchar" MaxLength="10" />
+          <Property Name="ship_carrier" Type="varchar" MaxLength="50" />
+          <Property Name="ship_tracking" Type="varchar" MaxLength="50" />
+          <Property Name="previous_order" Type="varchar" MaxLength="50" />
+          <Property Name="reorder_ind" Type="varchar" MaxLength="1" />
+          <Property Name="ship_attn" Type="varchar" MaxLength="100" />
+          <Property Name="contact" Type="varchar" MaxLength="100" />
+          <Property Name="contact_email" Type="varchar" MaxLength="100" />
+          <Property Name="contact_phone1" Type="varchar" MaxLength="10" />
+          <Property Name="contact_phone1_ext" Type="varchar" MaxLength="10" />
+          <Property Name="contact_phone1_type" Type="varchar" MaxLength="10" />
+          <Property Name="contact_phone2" Type="varchar" MaxLength="10" />
+          <Property Name="contact_phone2_ext" Type="varchar" MaxLength="10" />
+          <Property Name="contact_phone2_type" Type="varchar" MaxLength="10" />
+        </EntityType>
+        <EntityType Name="payment_interface_control">
+          <Key>
+            <PropertyRef Name="payment_control_id" />
+          </Key>
+          <Property Name="payment_control_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="xero_payment_id" Type="varchar" MaxLength="100" Nullable="false" />
+          <Property Name="order_payment_id" Type="int" Nullable="false" />
+          <Property Name="order_id" Type="int" Nullable="false" />
+          <Property Name="order_number" Type="varchar" MaxLength="50" Nullable="false" />
+          <Property Name="payment_date" Type="datetime" Precision="0" Nullable="false" />
+        </EntityType>
+        <EntityType Name="pricelist">
+          <Key>
+            <PropertyRef Name="pricelist_id" />
+          </Key>
+          <Property Name="pricelist_id" Type="int" Nullable="false" />
+          <Property Name="order_by" Type="int" />
+          <Property Name="pricelist_type" Type="varchar" MaxLength="10" />
+          <Property Name="pricelist_description" Type="varchar" MaxLength="100" />
+          <Property Name="pricelist_code" Type="varchar" MaxLength="50" />
+          <Property Name="pricelist_price" Type="varchar" MaxLength="50" />
+          <Property Name="taxable_ind" Type="varchar" MaxLength="1" />
+          <Property Name="default_ind" Type="varchar" MaxLength="1" />
+          <Property Name="created_by" Type="varchar" MaxLength="50" />
+          <Property Name="created_date" Type="datetime" Precision="0" />
+          <Property Name="updated_by" Type="varchar" MaxLength="50" />
+          <Property Name="updated_date" Type="datetime" Precision="0" />
+        </EntityType>
+        <EntityType Name="users">
+          <Key>
+            <PropertyRef Name="user_id" />
+          </Key>
+          <Property Name="user_id" Type="int" Nullable="false" />
+          <Property Name="login_id" Type="varchar" MaxLength="50" />
+          <Property Name="manager_id" Type="int" />
+          <Property Name="password" Type="varchar" MaxLength="50" />
+          <Property Name="login_attempt_count" Type="int" />
+          <Property Name="first_name" Type="varchar" MaxLength="50" />
+          <Property Name="last_name" Type="varchar" MaxLength="50" />
+          <Property Name="email" Type="varchar" MaxLength="50" />
+          <Property Name="status_code" Type="varchar" MaxLength="10" />
+          <Property Name="language_code" Type="varchar" MaxLength="10" />
+          <Property Name="wu_id" Type="int" />
+          <Property Name="lookup_item_code" Type="varchar" MaxLength="10" />
+          <Property Name="current_group" Type="varchar" MaxLength="50" />
+          <Property Name="order_search_for" Type="varchar" MaxLength="50" />
+          <Property Name="order_search_code" Type="varchar" MaxLength="10" />
+          <Property Name="current_table" Type="varchar" MaxLength="50" />
+          <Property Name="customer_search_for" Type="varchar" MaxLength="50" />
+          <Property Name="customer_search_code" Type="varchar" MaxLength="10" />
+          <Property Name="pass_change_1" Type="varchar" MaxLength="50" />
+          <Property Name="pass_change_2" Type="varchar" MaxLength="50" />
+          <Property Name="edit_email" Type="varchar" MaxLength="200" />
+          <Property Name="edit_subject" Type="varchar" MaxLength="255" />
+          <Property Name="edit_message" Type="varchar" MaxLength="2000" />
+          <Property Name="report_sel" Type="varchar" MaxLength="50" />
+          <Property Name="corr_type" Type="varchar" MaxLength="10" />
+          <Property Name="corr_disp" Type="varchar" MaxLength="10" />
+          <Property Name="task_list_type" Type="varchar" MaxLength="10" />
+          <Property Name="pricelist_type" Type="varchar" MaxLength="10" />
+          <Property Name="active_order_ind" Type="varchar" MaxLength="1" />
+          <Property Name="order_search_date" Type="datetime" Precision="0" />
+          <Property Name="task_type_code" Type="varchar" MaxLength="10" />
+          <Property Name="order_parent_search_for" Type="varchar" MaxLength="50" />
+          <Property Name="order_type_search_for" Type="varchar" MaxLength="10" />
+          <Property Name="assigned_to_search_for" Type="int" />
+        </EntityType>
+        <EntityContainer Name="SIMSModelStoreContainer">
+          <EntitySet Name="customer" EntityType="Self.customer" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="customer_address" EntityType="Self.customer_address" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="customer_person" EntityType="Self.customer_person" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="invoice_interface_control" EntityType="Self.invoice_interface_control" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="item_code_xref" EntityType="Self.item_code_xref" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="order_detail" EntityType="Self.order_detail" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="order_fees" EntityType="Self.order_fees" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="order_payments" EntityType="Self.order_payments" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="order_status_history" EntityType="Self.order_status_history" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="orders" EntityType="Self.orders" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="payment_interface_control" EntityType="Self.payment_interface_control" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="pricelist" EntityType="Self.pricelist" Schema="printmgr" store:Type="Tables" />
+          <EntitySet Name="users" EntityType="Self.users" Schema="printmgr" store:Type="Tables" />
+        </EntityContainer>
+      </Schema></edmx:StorageModels>
+    <!-- CSDL content -->
+    <edmx:ConceptualModels>
+      <Schema Namespace="SIMSModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
+        <EntityType Name="customer">
+          <Key>
+            <PropertyRef Name="customer_id" />
+          </Key>
+          <Property Name="customer_id" Type="Int32" Nullable="false" />
+          <Property Name="customer_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="setup_date" Type="DateTime" />
+          <Property Name="setup_by" Type="Int32" />
+          <Property Name="status_code" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="ship_to_bill_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="website_url" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="account_number" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="override_validation_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="parent_id" Type="Int64" />
+          <Property Name="parent_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+        </EntityType>
+        <EntityType Name="customer_address">
+          <Key>
+            <PropertyRef Name="customer_address_id" />
+          </Key>
+          <Property Name="customer_address_id" Type="Int32" Nullable="false" />
+          <Property Name="customer_id" Type="Int32" />
+          <Property Name="type_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="address_1" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="address_2" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="city" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="state" Type="String" MaxLength="2" FixedLength="false" Unicode="false" />
+          <Property Name="zip" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+        </EntityType>
+        <EntityType Name="item_code_xref">
+          <Key>
+            <PropertyRef Name="ReferenceId" />
+          </Key>
+          <Property Name="ReferenceId" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="target_item_code" Type="String" />
+          <Property Name="source_item_code" Type="String" />
+        </EntityType>
+        <EntityType Name="order_detail">
+          <Key>
+            <PropertyRef Name="order_detail_id" />
+          </Key>
+          <Property Name="order_detail_id" Type="Int32" Nullable="false" />
+          <Property Name="order_id" Type="Int32" />
+          <Property Name="item_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="item_line_number" Type="Int32" />
+          <Property Name="item_quantity" Type="Int32" />
+          <Property Name="pricelist_id" Type="Int32" />
+          <Property Name="style_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="color_code" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="size_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="vendor" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="manufacturer" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="product_code" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="item_price_each" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="item_price_ext" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="taxable_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="shipping_po" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="notes" Type="String" MaxLength="150" FixedLength="false" Unicode="false" />
+          <Property Name="checked_in_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="checked_out_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="xsmall_qty" Type="Int64" />
+          <Property Name="small_qty" Type="Int64" />
+          <Property Name="med_qty" Type="Int64" />
+          <Property Name="large_qty" Type="Int64" />
+          <Property Name="xl_qty" Type="Int64" />
+          <Property Name="C2xl_qty" Type="Int64" />
+          <Property Name="C3xl_qty" Type="Int64" />
+          <Property Name="C4xl_qty" Type="Int64" />
+          <Property Name="C5xl_qty" Type="Int64" />
+          <Property Name="other1_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="other1_qty" Type="Int64" />
+          <Property Name="other2_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="other2_qty" Type="Int64" />
+          <Property Name="other3_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="other3_qty" Type="Int64" />
+          <Property Name="order_number" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="customer_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="garment_order_date" Type="DateTime" />
+          <Property Name="garment_recvd_date" Type="DateTime" />
+        </EntityType>
+        <EntityType Name="order_payments">
+          <Key>
+            <PropertyRef Name="order_payment_id" />
+          </Key>
+          <Property Name="order_payment_id" Type="Int32" Nullable="false" />
+          <Property Name="order_id" Type="Int32" />
+          <Property Name="payment_date" Type="DateTime" />
+          <Property Name="payment_type_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="check_number" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="payment_amount" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="entered_user_id" Type="Int32" />
+        </EntityType>
+        <EntityType Name="order_status_history">
+          <Key>
+            <PropertyRef Name="order_status_history_id" />
+          </Key>
+          <Property Name="order_status_history_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="None" />
+          <Property Name="order_id" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_status" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="status_date" Type="DateTime" />
+          <Property Name="set_by_user_id" Type="Int32" />
+        </EntityType>
+        <EntityType Name="order">
+          <Key>
+            <PropertyRef Name="order_id" />
+          </Key>
+          <Property Name="order_id" Type="Int32" Nullable="false" />
+          <Property Name="customer_id" Type="Int32" />
+          <Property Name="order_number" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="purchase_order" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_date" Type="DateTime" />
+          <Property Name="order_due_date" Type="DateTime" />
+          <Property Name="order_status" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="taken_user_id" Type="Int32" />
+          <Property Name="assigned_user_id" Type="Int32" />
+          <Property Name="est_begin_date" Type="DateTime" />
+          <Property Name="act_begin_date" Type="DateTime" />
+          <Property Name="est_complete_date" Type="DateTime" />
+          <Property Name="act_complete_date" Type="DateTime" />
+          <Property Name="shipped_date" Type="DateTime" />
+          <Property Name="subtotal" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="tax_rate" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="tax_amount" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="shipping" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="total" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="payments" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="balance_due" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="IMAGE_FILE" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="BILL_ADDRESS_1" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="BILL_ADDRESS_2" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="BILL_CITY" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="BILL_STATE" Type="String" MaxLength="2" FixedLength="false" Unicode="false" />
+          <Property Name="BILL_ZIP" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="SHIP_ADDRESS_1" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="SHIP_ADDRESS_2" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="SHIP_CITY" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="SHIP_STATE" Type="String" MaxLength="2" FixedLength="false" Unicode="false" />
+          <Property Name="SHIP_ZIP" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="PRIORITY" Type="Int32" />
+          <Property Name="PERCENT_COMPLETE" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="ship_carrier" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="ship_tracking" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="previous_order" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="reorder_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="ship_attn" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="contact" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="contact_email" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone1" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone1_ext" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone1_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone2" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone2_ext" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="contact_phone2_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+        </EntityType>
+        <EntityType Name="pricelist">
+          <Key>
+            <PropertyRef Name="pricelist_id" />
+          </Key>
+          <Property Name="pricelist_id" Type="Int32" Nullable="false" />
+          <Property Name="order_by" Type="Int32" />
+          <Property Name="pricelist_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="pricelist_description" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="pricelist_code" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="pricelist_price" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="taxable_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="default_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="created_by" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="created_date" Type="DateTime" />
+          <Property Name="updated_by" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="updated_date" Type="DateTime" />
+        </EntityType>
+        <EntityContainer Name="SIMSDataEntities" annotation:LazyLoadingEnabled="true">
+          <EntitySet Name="customers" EntityType="Self.customer" />
+          <EntitySet Name="customer_address" EntityType="Self.customer_address" />
+          <EntitySet Name="item_code_xref" EntityType="Self.item_code_xref" />
+          <EntitySet Name="order_detail" EntityType="Self.order_detail" />
+          <EntitySet Name="order_payments" EntityType="Self.order_payments" />
+          <EntitySet Name="order_status_history" EntityType="Self.order_status_history" />
+          <EntitySet Name="orders" EntityType="Self.order" />
+          <EntitySet Name="pricelists" EntityType="Self.pricelist" />
+          <EntitySet Name="customer_person" EntityType="SIMSModel.customer_person" />
+          <EntitySet Name="users" EntityType="SIMSModel.user" />
+          <EntitySet Name="order_fees" EntityType="SIMSModel.order_fees" />
+          <EntitySet Name="invoice_interface_control" EntityType="SIMSModel.invoice_interface_control" />
+          <EntitySet Name="payment_interface_control" EntityType="SIMSModel.payment_interface_control" />
+        </EntityContainer>
+        <EntityType Name="customer_person">
+          <Key>
+            <PropertyRef Name="customer_person_id" />
+          </Key>
+          <Property Name="customer_person_id" Type="Int32" Nullable="false" />
+          <Property Name="customer_id" Type="Int32" />
+          <Property Name="setup_date" Type="DateTime" />
+          <Property Name="person_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="first_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="last_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="email_address" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="address_1" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="address_2" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="city" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="state" Type="String" MaxLength="2" FixedLength="false" Unicode="false" />
+          <Property Name="zip" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="country" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="phone_1" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="phone_1_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="phone_2" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="phone_2_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="ccnum" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="ccexp_date" Type="DateTime" />
+          <Property Name="ccverfcode" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="phone_1_ext" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="phone_2_ext" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+        </EntityType>
+        <EntityType Name="user">
+          <Key>
+            <PropertyRef Name="user_id" />
+          </Key>
+          <Property Name="user_id" Type="Int32" Nullable="false" />
+          <Property Name="login_id" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="manager_id" Type="Int32" />
+          <Property Name="password" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="login_attempt_count" Type="Int32" />
+          <Property Name="first_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="last_name" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="email" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="status_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="language_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="wu_id" Type="Int32" />
+          <Property Name="lookup_item_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="current_group" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_search_for" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_search_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="current_table" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="customer_search_for" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="customer_search_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="pass_change_1" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="pass_change_2" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="edit_email" Type="String" MaxLength="200" FixedLength="false" Unicode="false" />
+          <Property Name="edit_subject" Type="String" MaxLength="255" FixedLength="false" Unicode="false" />
+          <Property Name="edit_message" Type="String" MaxLength="2000" FixedLength="false" Unicode="false" />
+          <Property Name="report_sel" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="corr_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="corr_disp" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="task_list_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="pricelist_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="active_order_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="order_search_date" Type="DateTime" />
+          <Property Name="task_type_code" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="order_parent_search_for" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="order_type_search_for" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <Property Name="assigned_to_search_for" Type="Int32" />
+        </EntityType>
+        <EntityType Name="order_fees">
+          <Key>
+            <PropertyRef Name="order_fee_id" />
+          </Key>
+          <Property Name="order_fee_id" Type="Int32" Nullable="false" />
+          <Property Name="order_id" Type="Int32" />
+          <Property Name="fee_line_number" Type="Int32" />
+          <Property Name="fee_quantity" Type="Int32" />
+          <Property Name="pricelist_id" Type="Int32" />
+          <Property Name="fee_price_each" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="fee_price_ext" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="taxable_ind" Type="String" MaxLength="1" FixedLength="false" Unicode="false" />
+          <Property Name="notes" Type="String" MaxLength="150" FixedLength="false" Unicode="false" />
+        </EntityType>
+        <EntityType Name="invoice_interface_control">
+          <Key>
+            <PropertyRef Name="invoice_control_id" />
+          </Key>
+          <Property Name="invoice_control_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="xero_invoice_id" Type="String" Nullable="false" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="order_id" Type="Int32" Nullable="false" />
+          <Property Name="order_number" Type="String" Nullable="false" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="invoiced_date" Type="DateTime" Nullable="false" />
+        </EntityType>
+        <EntityType Name="payment_interface_control">
+          <Key>
+            <PropertyRef Name="payment_control_id" />
+          </Key>
+          <Property Name="payment_control_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="xero_payment_id" Type="String" Nullable="false" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="order_payment_id" Type="Int32" Nullable="false" />
+          <Property Name="order_id" Type="Int32" Nullable="false" />
+          <Property Name="order_number" Type="String" Nullable="false" MaxLength="50" FixedLength="false" Unicode="false" />
+          <Property Name="payment_date" Type="DateTime" Nullable="false" />
+        </EntityType>
+      </Schema>
+    </edmx:ConceptualModels>
+    <!-- C-S mapping content -->
+    <edmx:Mappings>
+      <Mapping Space="C-S" xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs">
+        <EntityContainerMapping StorageEntityContainer="SIMSModelStoreContainer" CdmEntityContainer="SIMSDataEntities">
+          <EntitySetMapping Name="customers">
+            <EntityTypeMapping TypeName="SIMSModel.customer">
+              <MappingFragment StoreEntitySet="customer">
+                <ScalarProperty Name="customer_id" ColumnName="customer_id" />
+                <ScalarProperty Name="customer_name" ColumnName="customer_name" />
+                <ScalarProperty Name="setup_date" ColumnName="setup_date" />
+                <ScalarProperty Name="setup_by" ColumnName="setup_by" />
+                <ScalarProperty Name="status_code" ColumnName="status_code" />
+                <ScalarProperty Name="ship_to_bill_ind" ColumnName="ship_to_bill_ind" />
+                <ScalarProperty Name="website_url" ColumnName="website_url" />
+                <ScalarProperty Name="account_number" ColumnName="account_number" />
+                <ScalarProperty Name="override_validation_ind" ColumnName="override_validation_ind" />
+                <ScalarProperty Name="parent_id" ColumnName="parent_id" />
+                <ScalarProperty Name="parent_ind" ColumnName="parent_ind" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="customer_address">
+            <EntityTypeMapping TypeName="SIMSModel.customer_address">
+              <MappingFragment StoreEntitySet="customer_address">
+                <ScalarProperty Name="customer_address_id" ColumnName="customer_address_id" />
+                <ScalarProperty Name="customer_id" ColumnName="customer_id" />
+                <ScalarProperty Name="type_code" ColumnName="type_code" />
+                <ScalarProperty Name="address_1" ColumnName="address_1" />
+                <ScalarProperty Name="address_2" ColumnName="address_2" />
+                <ScalarProperty Name="city" ColumnName="city" />
+                <ScalarProperty Name="state" ColumnName="state" />
+                <ScalarProperty Name="zip" ColumnName="zip" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="item_code_xref">
+            <EntityTypeMapping TypeName="SIMSModel.item_code_xref">
+              <MappingFragment StoreEntitySet="item_code_xref">
+                <ScalarProperty Name="ReferenceId" ColumnName="ReferenceId" />
+                <ScalarProperty Name="target_item_code" ColumnName="target_item_code" />
+                <ScalarProperty Name="source_item_code" ColumnName="source_item_code" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="order_detail">
+            <EntityTypeMapping TypeName="SIMSModel.order_detail">
+              <MappingFragment StoreEntitySet="order_detail">
+                <ScalarProperty Name="order_detail_id" ColumnName="order_detail_id" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="item_type" ColumnName="item_type" />
+                <ScalarProperty Name="item_line_number" ColumnName="item_line_number" />
+                <ScalarProperty Name="item_quantity" ColumnName="item_quantity" />
+                <ScalarProperty Name="pricelist_id" ColumnName="pricelist_id" />
+                <ScalarProperty Name="style_code" ColumnName="style_code" />
+                <ScalarProperty Name="color_code" ColumnName="color_code" />
+                <ScalarProperty Name="size_code" ColumnName="size_code" />
+                <ScalarProperty Name="vendor" ColumnName="vendor" />
+                <ScalarProperty Name="manufacturer" ColumnName="manufacturer" />
+                <ScalarProperty Name="product_code" ColumnName="product_code" />
+                <ScalarProperty Name="item_price_each" ColumnName="item_price_each" />
+                <ScalarProperty Name="item_price_ext" ColumnName="item_price_ext" />
+                <ScalarProperty Name="taxable_ind" ColumnName="taxable_ind" />
+                <ScalarProperty Name="shipping_po" ColumnName="shipping_po" />
+                <ScalarProperty Name="notes" ColumnName="notes" />
+                <ScalarProperty Name="checked_in_ind" ColumnName="checked_in_ind" />
+                <ScalarProperty Name="checked_out_ind" ColumnName="checked_out_ind" />
+                <ScalarProperty Name="xsmall_qty" ColumnName="xsmall_qty" />
+                <ScalarProperty Name="small_qty" ColumnName="small_qty" />
+                <ScalarProperty Name="med_qty" ColumnName="med_qty" />
+                <ScalarProperty Name="large_qty" ColumnName="large_qty" />
+                <ScalarProperty Name="xl_qty" ColumnName="xl_qty" />
+                <ScalarProperty Name="C2xl_qty" ColumnName="2xl_qty" />
+                <ScalarProperty Name="C3xl_qty" ColumnName="3xl_qty" />
+                <ScalarProperty Name="C4xl_qty" ColumnName="4xl_qty" />
+                <ScalarProperty Name="C5xl_qty" ColumnName="5xl_qty" />
+                <ScalarProperty Name="other1_type" ColumnName="other1_type" />
+                <ScalarProperty Name="other1_qty" ColumnName="other1_qty" />
+                <ScalarProperty Name="other2_type" ColumnName="other2_type" />
+                <ScalarProperty Name="other2_qty" ColumnName="other2_qty" />
+                <ScalarProperty Name="other3_type" ColumnName="other3_type" />
+                <ScalarProperty Name="other3_qty" ColumnName="other3_qty" />
+                <ScalarProperty Name="order_number" ColumnName="order_number" />
+                <ScalarProperty Name="customer_name" ColumnName="customer_name" />
+                <ScalarProperty Name="garment_order_date" ColumnName="garment_order_date" />
+                <ScalarProperty Name="garment_recvd_date" ColumnName="garment_recvd_date" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="order_payments">
+            <EntityTypeMapping TypeName="SIMSModel.order_payments">
+              <MappingFragment StoreEntitySet="order_payments">
+                <ScalarProperty Name="order_payment_id" ColumnName="order_payment_id" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="payment_date" ColumnName="payment_date" />
+                <ScalarProperty Name="payment_type_code" ColumnName="payment_type_code" />
+                <ScalarProperty Name="check_number" ColumnName="check_number" />
+                <ScalarProperty Name="payment_amount" ColumnName="payment_amount" />
+                <ScalarProperty Name="entered_user_id" ColumnName="entered_user_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="order_status_history">
+            <EntityTypeMapping TypeName="SIMSModel.order_status_history">
+              <MappingFragment StoreEntitySet="order_status_history">
+                <ScalarProperty Name="order_status_history_id" ColumnName="order_status_history_id" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="order_status" ColumnName="order_status" />
+                <ScalarProperty Name="status_date" ColumnName="status_date" />
+                <ScalarProperty Name="set_by_user_id" ColumnName="set_by_user_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="orders">
+            <EntityTypeMapping TypeName="SIMSModel.order">
+              <MappingFragment StoreEntitySet="orders">
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="customer_id" ColumnName="customer_id" />
+                <ScalarProperty Name="order_number" ColumnName="order_number" />
+                <ScalarProperty Name="order_type" ColumnName="order_type" />
+                <ScalarProperty Name="purchase_order" ColumnName="purchase_order" />
+                <ScalarProperty Name="order_date" ColumnName="order_date" />
+                <ScalarProperty Name="order_due_date" ColumnName="order_due_date" />
+                <ScalarProperty Name="order_status" ColumnName="order_status" />
+                <ScalarProperty Name="taken_user_id" ColumnName="taken_user_id" />
+                <ScalarProperty Name="assigned_user_id" ColumnName="assigned_user_id" />
+                <ScalarProperty Name="est_begin_date" ColumnName="est_begin_date" />
+                <ScalarProperty Name="act_begin_date" ColumnName="act_begin_date" />
+                <ScalarProperty Name="est_complete_date" ColumnName="est_complete_date" />
+                <ScalarProperty Name="act_complete_date" ColumnName="act_complete_date" />
+                <ScalarProperty Name="shipped_date" ColumnName="shipped_date" />
+                <ScalarProperty Name="subtotal" ColumnName="subtotal" />
+                <ScalarProperty Name="tax_rate" ColumnName="tax_rate" />
+                <ScalarProperty Name="tax_amount" ColumnName="tax_amount" />
+                <ScalarProperty Name="shipping" ColumnName="shipping" />
+                <ScalarProperty Name="total" ColumnName="total" />
+                <ScalarProperty Name="payments" ColumnName="payments" />
+                <ScalarProperty Name="balance_due" ColumnName="balance_due" />
+                <ScalarProperty Name="IMAGE_FILE" ColumnName="IMAGE_FILE" />
+                <ScalarProperty Name="BILL_ADDRESS_1" ColumnName="BILL_ADDRESS_1" />
+                <ScalarProperty Name="BILL_ADDRESS_2" ColumnName="BILL_ADDRESS_2" />
+                <ScalarProperty Name="BILL_CITY" ColumnName="BILL_CITY" />
+                <ScalarProperty Name="BILL_STATE" ColumnName="BILL_STATE" />
+                <ScalarProperty Name="BILL_ZIP" ColumnName="BILL_ZIP" />
+                <ScalarProperty Name="SHIP_ADDRESS_1" ColumnName="SHIP_ADDRESS_1" />
+                <ScalarProperty Name="SHIP_ADDRESS_2" ColumnName="SHIP_ADDRESS_2" />
+                <ScalarProperty Name="SHIP_CITY" ColumnName="SHIP_CITY" />
+                <ScalarProperty Name="SHIP_STATE" ColumnName="SHIP_STATE" />
+                <ScalarProperty Name="SHIP_ZIP" ColumnName="SHIP_ZIP" />
+                <ScalarProperty Name="PRIORITY" ColumnName="PRIORITY" />
+                <ScalarProperty Name="PERCENT_COMPLETE" ColumnName="PERCENT_COMPLETE" />
+                <ScalarProperty Name="ship_carrier" ColumnName="ship_carrier" />
+                <ScalarProperty Name="ship_tracking" ColumnName="ship_tracking" />
+                <ScalarProperty Name="previous_order" ColumnName="previous_order" />
+                <ScalarProperty Name="reorder_ind" ColumnName="reorder_ind" />
+                <ScalarProperty Name="ship_attn" ColumnName="ship_attn" />
+                <ScalarProperty Name="contact" ColumnName="contact" />
+                <ScalarProperty Name="contact_email" ColumnName="contact_email" />
+                <ScalarProperty Name="contact_phone1" ColumnName="contact_phone1" />
+                <ScalarProperty Name="contact_phone1_ext" ColumnName="contact_phone1_ext" />
+                <ScalarProperty Name="contact_phone1_type" ColumnName="contact_phone1_type" />
+                <ScalarProperty Name="contact_phone2" ColumnName="contact_phone2" />
+                <ScalarProperty Name="contact_phone2_ext" ColumnName="contact_phone2_ext" />
+                <ScalarProperty Name="contact_phone2_type" ColumnName="contact_phone2_type" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="pricelists">
+            <EntityTypeMapping TypeName="SIMSModel.pricelist">
+              <MappingFragment StoreEntitySet="pricelist">
+                <ScalarProperty Name="pricelist_id" ColumnName="pricelist_id" />
+                <ScalarProperty Name="order_by" ColumnName="order_by" />
+                <ScalarProperty Name="pricelist_type" ColumnName="pricelist_type" />
+                <ScalarProperty Name="pricelist_description" ColumnName="pricelist_description" />
+                <ScalarProperty Name="pricelist_code" ColumnName="pricelist_code" />
+                <ScalarProperty Name="pricelist_price" ColumnName="pricelist_price" />
+                <ScalarProperty Name="taxable_ind" ColumnName="taxable_ind" />
+                <ScalarProperty Name="default_ind" ColumnName="default_ind" />
+                <ScalarProperty Name="created_by" ColumnName="created_by" />
+                <ScalarProperty Name="created_date" ColumnName="created_date" />
+                <ScalarProperty Name="updated_by" ColumnName="updated_by" />
+                <ScalarProperty Name="updated_date" ColumnName="updated_date" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="customer_person">
+            <EntityTypeMapping TypeName="SIMSModel.customer_person">
+              <MappingFragment StoreEntitySet="customer_person">
+                <ScalarProperty Name="phone_2_ext" ColumnName="phone_2_ext" />
+                <ScalarProperty Name="phone_1_ext" ColumnName="phone_1_ext" />
+                <ScalarProperty Name="ccverfcode" ColumnName="ccverfcode" />
+                <ScalarProperty Name="ccexp_date" ColumnName="ccexp_date" />
+                <ScalarProperty Name="ccnum" ColumnName="ccnum" />
+                <ScalarProperty Name="phone_2_type" ColumnName="phone_2_type" />
+                <ScalarProperty Name="phone_2" ColumnName="phone_2" />
+                <ScalarProperty Name="phone_1_type" ColumnName="phone_1_type" />
+                <ScalarProperty Name="phone_1" ColumnName="phone_1" />
+                <ScalarProperty Name="country" ColumnName="country" />
+                <ScalarProperty Name="zip" ColumnName="zip" />
+                <ScalarProperty Name="state" ColumnName="state" />
+                <ScalarProperty Name="city" ColumnName="city" />
+                <ScalarProperty Name="address_2" ColumnName="address_2" />
+                <ScalarProperty Name="address_1" ColumnName="address_1" />
+                <ScalarProperty Name="email_address" ColumnName="email_address" />
+                <ScalarProperty Name="last_name" ColumnName="last_name" />
+                <ScalarProperty Name="first_name" ColumnName="first_name" />
+                <ScalarProperty Name="person_type" ColumnName="person_type" />
+                <ScalarProperty Name="setup_date" ColumnName="setup_date" />
+                <ScalarProperty Name="customer_id" ColumnName="customer_id" />
+                <ScalarProperty Name="customer_person_id" ColumnName="customer_person_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="users">
+            <EntityTypeMapping TypeName="SIMSModel.user">
+              <MappingFragment StoreEntitySet="users">
+                <ScalarProperty Name="assigned_to_search_for" ColumnName="assigned_to_search_for" />
+                <ScalarProperty Name="order_type_search_for" ColumnName="order_type_search_for" />
+                <ScalarProperty Name="order_parent_search_for" ColumnName="order_parent_search_for" />
+                <ScalarProperty Name="task_type_code" ColumnName="task_type_code" />
+                <ScalarProperty Name="order_search_date" ColumnName="order_search_date" />
+                <ScalarProperty Name="active_order_ind" ColumnName="active_order_ind" />
+                <ScalarProperty Name="pricelist_type" ColumnName="pricelist_type" />
+                <ScalarProperty Name="task_list_type" ColumnName="task_list_type" />
+                <ScalarProperty Name="corr_disp" ColumnName="corr_disp" />
+                <ScalarProperty Name="corr_type" ColumnName="corr_type" />
+                <ScalarProperty Name="report_sel" ColumnName="report_sel" />
+                <ScalarProperty Name="edit_message" ColumnName="edit_message" />
+                <ScalarProperty Name="edit_subject" ColumnName="edit_subject" />
+                <ScalarProperty Name="edit_email" ColumnName="edit_email" />
+                <ScalarProperty Name="pass_change_2" ColumnName="pass_change_2" />
+                <ScalarProperty Name="pass_change_1" ColumnName="pass_change_1" />
+                <ScalarProperty Name="customer_search_code" ColumnName="customer_search_code" />
+                <ScalarProperty Name="customer_search_for" ColumnName="customer_search_for" />
+                <ScalarProperty Name="current_table" ColumnName="current_table" />
+                <ScalarProperty Name="order_search_code" ColumnName="order_search_code" />
+                <ScalarProperty Name="order_search_for" ColumnName="order_search_for" />
+                <ScalarProperty Name="current_group" ColumnName="current_group" />
+                <ScalarProperty Name="lookup_item_code" ColumnName="lookup_item_code" />
+                <ScalarProperty Name="wu_id" ColumnName="wu_id" />
+                <ScalarProperty Name="language_code" ColumnName="language_code" />
+                <ScalarProperty Name="status_code" ColumnName="status_code" />
+                <ScalarProperty Name="email" ColumnName="email" />
+                <ScalarProperty Name="last_name" ColumnName="last_name" />
+                <ScalarProperty Name="first_name" ColumnName="first_name" />
+                <ScalarProperty Name="login_attempt_count" ColumnName="login_attempt_count" />
+                <ScalarProperty Name="password" ColumnName="password" />
+                <ScalarProperty Name="manager_id" ColumnName="manager_id" />
+                <ScalarProperty Name="login_id" ColumnName="login_id" />
+                <ScalarProperty Name="user_id" ColumnName="user_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="order_fees">
+            <EntityTypeMapping TypeName="SIMSModel.order_fees">
+              <MappingFragment StoreEntitySet="order_fees">
+                <ScalarProperty Name="notes" ColumnName="notes" />
+                <ScalarProperty Name="taxable_ind" ColumnName="taxable_ind" />
+                <ScalarProperty Name="fee_price_ext" ColumnName="fee_price_ext" />
+                <ScalarProperty Name="fee_price_each" ColumnName="fee_price_each" />
+                <ScalarProperty Name="pricelist_id" ColumnName="pricelist_id" />
+                <ScalarProperty Name="fee_quantity" ColumnName="fee_quantity" />
+                <ScalarProperty Name="fee_line_number" ColumnName="fee_line_number" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="order_fee_id" ColumnName="order_fee_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="invoice_interface_control">
+            <EntityTypeMapping TypeName="SIMSModel.invoice_interface_control">
+              <MappingFragment StoreEntitySet="invoice_interface_control">
+                <ScalarProperty Name="invoiced_date" ColumnName="invoiced_date" />
+                <ScalarProperty Name="order_number" ColumnName="order_number" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="xero_invoice_id" ColumnName="xero_invoice_id" />
+                <ScalarProperty Name="invoice_control_id" ColumnName="invoice_control_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="payment_interface_control">
+            <EntityTypeMapping TypeName="SIMSModel.payment_interface_control">
+              <MappingFragment StoreEntitySet="payment_interface_control">
+                <ScalarProperty Name="payment_date" ColumnName="payment_date" />
+                <ScalarProperty Name="order_number" ColumnName="order_number" />
+                <ScalarProperty Name="order_id" ColumnName="order_id" />
+                <ScalarProperty Name="order_payment_id" ColumnName="order_payment_id" />
+                <ScalarProperty Name="xero_payment_id" ColumnName="xero_payment_id" />
+                <ScalarProperty Name="payment_control_id" ColumnName="payment_control_id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+        </EntityContainerMapping>
+      </Mapping>
+    </edmx:Mappings>
+  </edmx:Runtime>
+  <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <Connection>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="MetadataArtifactProcessing" Value="EmbedInOutputAssembly" />
+      </DesignerInfoPropertySet>
+    </Connection>
+    <Options>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="ValidateOnBuild" Value="true" />
+        <DesignerProperty Name="EnablePluralization" Value="true" />
+        <DesignerProperty Name="IncludeForeignKeysInModel" Value="true" />
+        <DesignerProperty Name="UseLegacyProvider" Value="false" />
+        <DesignerProperty Name="CodeGenerationStrategy" Value="None" />
+      </DesignerInfoPropertySet>
+    </Options>
+    <!-- Diagram content (shape and connector positions) -->
+    <Diagrams></Diagrams>
+  </Designer>
+</edmx:Edmx>

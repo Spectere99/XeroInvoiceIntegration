@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+ <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <edmx:Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <!-- Diagram content (shape and connector positions) -->
+    <edmx:Diagrams>
+      <Diagram DiagramId="50da95190e904c5b8defd2fe421f4600" Name="Diagram1">
+        <EntityTypeShape EntityType="SIMSModel.customer" Width="1.5" PointX="0.5" PointY="0.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.customer_address" Width="1.5" PointX="2.75" PointY="0.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.item_code_xref" Width="1.5" PointX="0.75" PointY="4.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.order_detail" Width="1.5" PointX="2.875" PointY="4.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.order_payments" Width="1.5" PointX="8.625" PointY="4.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.order_status_history" Width="1.5" PointX="6.75" PointY="0.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.order" Width="1.5" PointX="5" PointY="3" IsExpanded="true" />
+        <EntityTypeShape EntityType="SIMSModel.pricelist" Width="1.5" PointX="8.75" PointY="0.75" IsExpanded="true" />
+        <AssociationConnector Association="SIMSModel.order_detailorder" />
+        <EntityTypeShape EntityType="SIMSModel.customer_person" Width="1.5" PointX="6.75" PointY="3" />
+        <EntityTypeShape EntityType="SIMSModel.user" Width="1.5" PointX="9.375" PointY="7.75" />
+        <EntityTypeShape EntityType="SIMSModel.order_fees" Width="1.5" PointX="10.75" PointY="0.75" />
+        <EntityTypeShape EntityType="SIMSModel.invoice_interface_control" Width="1.5" PointX="11.375" PointY="4.75" />
+        <EntityTypeShape EntityType="SIMSModel.payment_interface_control" Width="1.5" PointX="11.375" PointY="7.75" />
+      </Diagram>
+    </edmx:Diagrams>
+  </edmx:Designer>
+</edmx:Edmx>
