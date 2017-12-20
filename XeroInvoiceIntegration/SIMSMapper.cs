@@ -220,14 +220,17 @@ namespace XeroInvoiceIntegration
                 xeroInvoiceItem.TaxType = "NONE";
                 decimal feeQty = feeItem.fee_quantity != null ? decimal.Parse(feeItem.fee_quantity.ToString()) : 0;
                 decimal feePriceEach = feeItem.fee_price_each != null ? decimal.Parse(feeItem.fee_price_each) : 0;
-                if (feeQty == 0)
-                {
-                    throw new Exception("Fee Quantity to provided.");
-                }
-                if (feePriceEach == 0)
-                {
-                    throw new Exception("Fee Price Each not provided");
-                }
+
+                // *** Fix for Ticket 44:  Waived Charges with value of '0' is causing invoice to not generate'
+                //if (feeQty == 0)
+                //{
+                //    throw new Exception("Fee Quantity not provided.");
+                //}
+                //if (feePriceEach == 0)
+                //{
+                //    throw new Exception("Fee Price Each not provided");
+                //}
+                // *** END OF FIX for TICKET 44
                 xeroInvoiceItem.LineAmount = feeItem.fee_price_ext != null? decimal.Parse(feeItem.fee_price_ext) : feePriceEach * feeItem.fee_quantity;
                 xeroInvoiceItem.Quantity = feeItem.fee_quantity;
                 xeroInvoiceItem.UnitAmount = feePriceEach;
