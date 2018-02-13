@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using log4net;
 using SIMSData;
 using Xero.Api.Core.Model;
@@ -200,8 +201,31 @@ namespace XeroInvoiceIntegration
         {
             foreach (Payment payment in invoice.Payments)
             {
-                Payment fullPayment =
-                    _xeroIntegration.FindPaymenteByIdDirect(payment.Id.ToString());
+                // *** FIX for TICKET 22: Payments are failing because of Oauth timeout on the XERO Web service API
+                Payment fullPayment = null;
+                try
+                {
+                    fullPayment = _xeroIntegration.FindPaymenteByIdDirect(payment.Id.ToString());
+                }
+                catch (Exception eX)
+                {
+                    _log.ErrorFormat("!!!! An Error Occurred in ProcessPayments {0} : {1} - Pausing", payment.Id, Utilities.FlattenException(eX));
+                    if (Utilities.FlattenException(eX).Contains("oauth_problem")) // Need to pause for 60 seconds before trying again.
+                    {
+                        Console.WriteLine("Exceed OAuth Limitations.  Pausing 1 minute.");
+                        Thread.Sleep(61000);
+                        _log.InfoFormat("*** Trying Again {0}", payment.Id);
+                        try
+                        {
+                            fullPayment = _xeroIntegration.FindPaymenteByIdDirect(payment.Id.ToString());
+                        }
+                        catch (Exception e)
+                        {
+                            _log.ErrorFormat("!!!! An Error Occurred in ProcessPayments after Pause {0} : {1}", payment.Id, Utilities.FlattenException(e));
+                        }
+                    }
+                }
+                // *** END FIX for TICKET 22: 
 
                 if (fullPayment != null)
                 {
