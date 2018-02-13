@@ -178,7 +178,8 @@ namespace XeroInvoiceIntegration
                         if (detail.C5xl_qty != null) xeroItemCode = "005";
                     }
                     xeroInvoiceItem.ItemCode = xeroItemCode;
-                    xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "OUTPUT": "NONE";
+                    //RWF - 2/12/2018 - Changed OUTPUT to TAX002 for new owners of Southpaw.
+                    xeroInvoiceItem.TaxType = detail.taxable_ind == "Y" ? "TAX002": "NONE";
                 }
                 else
                 {
