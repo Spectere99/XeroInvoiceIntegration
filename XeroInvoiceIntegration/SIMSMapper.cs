@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 using SIMSData;
 using Xero.Api.Core.Model;
 using Xero.Api.Core.Model.Status;
@@ -16,6 +17,13 @@ namespace XeroInvoiceIntegration
 {
     public class SIMSMapper
     {
+        private static ILog _log;
+
+        public SIMSMapper()
+        {
+            //setup logger
+            _log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        }
         public Contact BuildContact(int customerId)
         {
             SIMSDataEntities dataEntities = new SIMSDataEntities();
@@ -132,7 +140,7 @@ namespace XeroInvoiceIntegration
 
             List<LineItem> lineItems = new List<LineItem>();
 
-            IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id);
+            IEnumerable<order_detail> orderDetails = dataEntities.order_detail.Where(o => o.order_id == theOrder.order_id).ToList();
             //TODO:  Add check for a valid details.  If quantity or price is null, then it is an invalid line item and an exception needs to be thrown and recorded.
             string purchaseOrder = theOrder.purchase_order ?? string.Empty;
             //if (theOrder.purchase_order != null && (theOrder.purchase_order != null || theOrder.purchase_order.Trim().Length > 0))
@@ -146,9 +154,12 @@ namespace XeroInvoiceIntegration
                 poLine.TaxType = "NONE";
                 lineItems.Add(poLine);
             }
+            _log.Info("Builidng Order Details for Invoice");
             foreach (var detail in orderDetails)
             {
+                
                 var priceListId = detail.pricelist_id ?? default(int);
+                _log.InfoFormat("Detail for PriceList_Id : {0}", priceListId);
                 var pricelistItems =
                     dataEntities.pricelists.FirstOrDefault(p => p.pricelist_id == priceListId);
                
@@ -199,7 +210,8 @@ namespace XeroInvoiceIntegration
                 lineItems.Add(xeroInvoiceItem);
             }
             // Check for setup fees and charges from the order_fees table in SIMS
-            var feeItems = dataEntities.order_fees.Where(p => p.order_id == theOrder.order_id);
+            _log.InfoFormat("Getting Invoice Fees");
+            var feeItems = dataEntities.order_fees.Where(p => p.order_id == theOrder.order_id).ToList();
             foreach (order_fees feeItem in feeItems)
             {
                 var xeroInvoiceItem = new LineItem();
@@ -239,7 +251,7 @@ namespace XeroInvoiceIntegration
                 lineItems.Add(xeroInvoiceItem);
             }
 
-
+            dataEntities.Dispose();
             return lineItems;
         }
 
