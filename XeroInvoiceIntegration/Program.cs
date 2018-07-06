@@ -32,10 +32,6 @@ namespace XeroInvoiceIntegration
         {
             //setup commandline Options
             var options = new Options();
-            TextWriter customerAuditTextWriter;
-            TextWriter invoiceAuditTextWriter;
-            TextWriter paymentAuditTextWriter;
-            TextWriter exceptionAuditTextWriter;
 
             _lastTime = DateTime.Now;
             if (CommandLine.Parser.Default.ParseArguments(args, options))
@@ -43,6 +39,11 @@ namespace XeroInvoiceIntegration
                 //setup logger
                 _log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
                 DateTime startTime = DateTime.Now;
+                TextWriter trackTextWriter = null;
+                TextWriter customerAuditTextWriter = null;
+                TextWriter invoiceAuditTextWriter = null;
+                TextWriter paymentAuditTextWriter = null;
+                TextWriter exceptionAuditTextWriter = null;
                 try
                 {
 
@@ -50,6 +51,8 @@ namespace XeroInvoiceIntegration
                     //setup audit file
                     string auditLocationBase = ConfigurationManager.AppSettings["AuditFilesLocation"];
 
+                    string trackFile = auditLocationBase +
+                                       DateTime.Now.ToString("yyyyMMddhhmmss") + "_Track.csv";
                     string auditCustomerFile = auditLocationBase +
                                                DateTime.Now.ToString("yyyyMMddhhmmss") + "_Customer.csv";
                     string auditInvoiceFile = auditLocationBase +
@@ -63,17 +66,24 @@ namespace XeroInvoiceIntegration
                     {
                         Directory.CreateDirectory(auditLocationBase);
                     }
-
+                    trackTextWriter = new StreamWriter(trackFile);
                     customerAuditTextWriter = new StreamWriter(auditCustomerFile);
                     invoiceAuditTextWriter = new StreamWriter(auditInvoiceFile);
                     paymentAuditTextWriter = new StreamWriter(auditPaymentFile);
                     exceptionAuditTextWriter = new StreamWriter(exceptionFile);
 
+                    var trackCsv = new CsvWriter(trackTextWriter);
                     var customerCsv = new CsvWriter(customerAuditTextWriter);
                     var invoiceCsv = new CsvWriter(invoiceAuditTextWriter);
                     var paymentCsv = new CsvWriter(paymentAuditTextWriter);
                     var exceptionCsv = new CsvWriter(exceptionAuditTextWriter);
 
+                    //Test The CSVWriter
+                    var record = new {Id = 1, Name = "Track File"};
+                    trackCsv.WriteRecord(record);
+                    trackCsv.NextRecord();
+                    trackCsv.Flush();
+                    trackTextWriter.Close();
                     bool customerHeaderWritten = false;
                     bool invoiceHeaderWritten = false;
                     bool paymentHeaderWritten = false;
@@ -212,7 +222,9 @@ namespace XeroInvoiceIntegration
 
                                             if (!customerHeaderWritten)
                                             {
+                                                _log.Info("** Writing Audit Header for Customer");
                                                 customerCsv.WriteHeader(customerAudit.GetType());
+                                                customerCsv.NextRecord();
                                                 customerHeaderWritten = true;
                                             }
 
@@ -260,7 +272,9 @@ namespace XeroInvoiceIntegration
                                                 }
                                             }
                                             customerAudit.Email = xeroContact.EmailAddress;
+                                            _log.Info("** Writing Audit Record for Customer");
                                             customerCsv.WriteRecord(customerAudit);
+                                            customerCsv.NextRecord();
 
                                             _log.Info("** Validating Invoice for Customer");
                                             string orderid = header.order_id.ToString();
@@ -321,7 +335,9 @@ namespace XeroInvoiceIntegration
                                                 _log.InfoFormat("Invoice Built for Ref: {0}", referenceNumber);
                                                 if (!invoiceHeaderWritten)
                                                 {
+                                                    _log.Info("** Writing Audit Header for Invoice");
                                                     invoiceCsv.WriteHeader(invoiceAudit.GetType());
+                                                    invoiceCsv.NextRecord();
                                                     invoiceHeaderWritten = true;
                                                 }
 
@@ -376,8 +392,9 @@ namespace XeroInvoiceIntegration
                                                 invoiceAudit.OrderNumber = header.order_number;
                                                 invoiceAudit.ReferenceNbr = xeroInvoice.Reference;
                                                 invoiceAudit.XeroInvoiceId = xeroInvoice.Id.ToString();
-                                                _log.InfoFormat("Writing Audit to CSV");
+                                                _log.Info("** Writing Audit Record for Invoice");
                                                 invoiceCsv.WriteRecord(invoiceAudit);
+                                                invoiceCsv.NextRecord();
                                             }
                                         }
                                     }
@@ -397,10 +414,14 @@ namespace XeroInvoiceIntegration
                                     null);
                                 if (!exceptionHeaderWritten)
                                 {
+                                    _log.Info("** Writing Exception Header - Inner 2:Validation");
                                     exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                    exceptionCsv.NextRecord();
                                     exceptionHeaderWritten = true;
                                 }
+                                _log.Info("** Writing Exception Record - Inner 2:Validation");
                                 exceptionCsv.WriteRecord(exceptionAudit);
+                                exceptionCsv.NextRecord();
                                 _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                     valEx.Message);
                                 _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
@@ -419,10 +440,14 @@ namespace XeroInvoiceIntegration
                                     null);
                                 if (!exceptionHeaderWritten)
                                 {
+                                    _log.Info("** Writing Exception Header - Inner 2");
                                     exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                    exceptionCsv.NextRecord();
                                     exceptionHeaderWritten = true;
                                 }
+                                _log.Info("** Writing Exception Record - Inner 2");
                                 exceptionCsv.WriteRecord(exceptionAudit);
+                                exceptionCsv.NextRecord();
                                 _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                     ex.Message);
                                 _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
@@ -470,10 +495,14 @@ namespace XeroInvoiceIntegration
 
                                         if (!paymentHeaderWritten)
                                         {
+                                            _log.Info("** Writing Audit Header for Payments");
                                             paymentCsv.WriteHeader(paymentAudit.GetType());
+                                            paymentCsv.NextRecord();
                                             paymentHeaderWritten = true;
                                         }
+                                        _log.Info("** Writing Audit Record for Payments");
                                         paymentCsv.WriteRecord(paymentAudit);
+                                        paymentCsv.NextRecord();
                                     }
                                     catch (ValidationException valEx)
                                     {
@@ -485,10 +514,14 @@ namespace XeroInvoiceIntegration
                                             paymentAudit);
                                         if (!exceptionHeaderWritten)
                                         {
+                                            _log.Info("** Writing Exception Header - Inner 1:Validation");
                                             exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                            exceptionCsv.NextRecord();
                                             exceptionHeaderWritten = true;
                                         }
+                                        _log.Info("** Writing Exception Record - Inner 1:Validation");
                                         exceptionCsv.WriteRecord(exceptionAudit);
+                                        exceptionCsv.NextRecord();
                                         _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                             valEx.Message);
                                         _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
@@ -507,10 +540,14 @@ namespace XeroInvoiceIntegration
                                             paymentAudit);
                                         if (!exceptionHeaderWritten)
                                         {
+                                            _log.Info("** Writing Exception Header - Inner 1");
                                             exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                            exceptionCsv.NextRecord();
                                             exceptionHeaderWritten = true;
                                         }
+                                        _log.Info("** Writing Exception Record - Inner 1");
                                         exceptionCsv.WriteRecord(exceptionAudit);
+                                        exceptionCsv.NextRecord();
                                         _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                             ex.Message);
                                         _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
@@ -529,10 +566,14 @@ namespace XeroInvoiceIntegration
                                 paymentAudit);
                             if (!exceptionHeaderWritten)
                             {
+                                _log.Info("** Writing Exception Header - Outer:Validation");
                                 exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionCsv.NextRecord();
                                 exceptionHeaderWritten = true;
                             }
+                            _log.Info("** Writing Exception Record - Outer:Validation");
                             exceptionCsv.WriteRecord(exceptionAudit);
+                            exceptionCsv.NextRecord();
                             _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                 valEx.Message);
                             _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(valEx));
@@ -551,10 +592,14 @@ namespace XeroInvoiceIntegration
                                 paymentAudit);
                             if (!exceptionHeaderWritten)
                             {
+                                _log.Info("** Writing Exception Header - Outer");
                                 exceptionCsv.WriteHeader(exceptionAudit.GetType());
+                                exceptionCsv.NextRecord();
                                 exceptionHeaderWritten = true;
                             }
+                            _log.Info("** Writing Exception Record - Outer");
                             exceptionCsv.WriteRecord(exceptionAudit);
+                            exceptionCsv.NextRecord();
                             _log.ErrorFormat("An Error occurred when processing Orders: Line: {0} : {1}", line,
                                 ex.Message);
                             _log.ErrorFormat("Stack Trace:{0}", Utilities.FlattenException(ex));
@@ -928,9 +973,19 @@ namespace XeroInvoiceIntegration
                     //    _log.Info("*****  Not Transmitting to Xero.  Skipping Check for Back Payments ********");
                     //}
 #endregion
+
+                    _log.Info("Flushing and Closing Audit Files");
+                    //customerAuditTextWriter.Flush();
+                    customerCsv.Flush();
                     customerAuditTextWriter.Close();
+                    //invoiceAuditTextWriter.Flush();
+                    invoiceCsv.Flush();
                     invoiceAuditTextWriter.Close();
+                    //paymentAuditTextWriter.Flush();
+                    paymentCsv.Flush();
                     paymentAuditTextWriter.Close();
+                    //exceptionAuditTextWriter.Flush();
+                    exceptionCsv.Flush();
                     exceptionAuditTextWriter.Close();
                     _log.Info("***** Sending Daily Results Email *****");
                     if (emailResults)
@@ -952,8 +1007,12 @@ namespace XeroInvoiceIntegration
                 }
                 catch (Exception ex)
                 {
-                    
-                    
+                    _log.Error("!!!!! In Error Handler !!!!!");
+                    _log.Error(" !!!!! Flushing and Closing Audit Logs !!!!!");
+                    customerAuditTextWriter?.Close();
+                    invoiceAuditTextWriter?.Close();
+                    paymentAuditTextWriter?.Close();
+                    exceptionAuditTextWriter?.Close();
                     _log.Error("!!!!!!!! ERROR !!!!!!!!!!");
                     _log.ErrorFormat(" Error: {0}", ex.Message);
                     _log.ErrorFormat(" Error Inner Exception: {0}", Utilities.FlattenException(ex));
